@@ -3,7 +3,7 @@ title: "Master's Thesis"
 author: "Paul Rongieras, Valentin Rivet, Raphaël Capranico"
 date: "2024-11-17"
 output:
-  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -35,7 +35,7 @@ $$ Proof of $(i)$: $$
 = \frac{\mathbb{P}(A \cap B \cap C)}{\mathbb{P}(C)} 
 = \mathbb{P}(A \cap B \mid C).$$
 
-The process giving the visited state at each time t ∈ T is called a semi-Markov process.
+The process giving the visited state at each time $t \in T$ is called a semi-Markov process.
 
 We then denote $\alpha = (\alpha_1, \ldots, \alpha_D)$ the vector of initial probabilities of the process, where $\alpha_j = \mathbb{P}(J_1 = j)$, $j \in E$.
 
