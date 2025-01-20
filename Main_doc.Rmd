@@ -1,16 +1,20 @@
 ---
 title: "Master's Thesis"
+subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C. Frascola et. al, 2022."
 author: "Paul Rongieras, Valentin Rivet, Raphaël Capranico"
-date: "2024-11-17"
+date: "2025-01-20"
 output:
-  pdf_document: default
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    latex_engine: xelatex
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-### Based on the article: "Two-Sample Tests for Semi-Markov Processes with Parametric Sojourn Time Distributions: An Application in Sensory Analysis", C. Frascola et. al, 2022.
+\newpage
 
 ## I. Introduction
 
@@ -18,35 +22,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ### 1. Definition of a semi-Markov process
 
-We define $(J_p)_{p \geq 1}$, a homogeneous Markov chain taking values in a finite state space $E$, with $D$ states and so $E = \{1, \ldots, D\}$. We denote its transition matrix $P$ by its generic elements $P_{lj} = \mathbb{P}(J_{p+1} = j \mid J_p = l)$ for all $j \neq l \in E$, and we suppose $P_{jj} = 0$ for all $j \in E$.
+We define $(J_p)_{p \geq 1}$, a homogeneous Markov chain taking values in a finite state space $E$, with $D$ states and so $E = \{1, \ldots, D\}$. We denote its transition matrix $P$ by its generic elements $P_{lj} = \mathbb{P}(J_{p+1} = j \mid J_p = l)$ for all $j \neq l \in E$, and we suppose $P_{jj} = 0$ for all $j \in E$. We also define $(X_p)_{p \geq 1}$, the sequence of sojourn times in the visited states by the chain $(J_p)_{p \geq 1}$. For $j \neq l$, $\Phi_{lj}(t) = \mathbb{P}[X_p \leq t \mid J_p = l, J_{p+1} = j]$ is defined as the cumulative distribution function of the sojourn time given the current state of the chain and its next state.
 
-We also define $(X_p)_{p \geq 1}$, the sequence of sojourn times in the visited states by the chain $(J_p)_{p \geq 1}$. For $j \neq l$, $\Phi_{lj}(t) = \mathbb{P}[X_p \leq t \mid J_p = l, J_{p+1} = j]$ is defined as the cumulative distribution function of the sojourn time given the current state of the chain and its next state.
+The process $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process and satisfies the following Markov property for $t \in T = [0, +\infty)$, $j \neq l \in E$: 
 
-The process $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process and so satisfies the following Markov property for $t \in T = [0, +\infty)$, $j \neq l \in E$: $$
-\mathbb{P}[J_{p+1} = j, X_p \leq t \mid J_p = l, J_{p-1}, \ldots, J_1, X_{p-1}, \ldots, X_1] 
-= \mathbb{P}(J_{p+1} = j, X_p \leq t \mid J_p = l)
-$$ as $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process. $$
-= \mathbb{P}(J_{p+1} = j \mid J_p = l) \cdot \mathbb{P}(X_p \leq t \mid J_{p+1} = j, J_p = l)
-$$ by the formula $(i)$: $\mathbb{P}(A \cap B \mid C) = \mathbb{P}(A \mid C) \cdot \mathbb{P}(B \mid A \cap C)$ for any sets $A$, $B$, $C$. $$
-= P_{lj} \cdot \Phi_{lj}(t).
-$$ Proof of $(i)$: $$
-\mathbb{P}(A \mid C) \cdot \mathbb{P}(B \mid A \cap C) 
-= \frac{\mathbb{P}(A \cap C)}{\mathbb{P}(C)} \cdot \frac{\mathbb{P}(B \cap A \cap C)}{\mathbb{P}(A \cap C)} 
-= \frac{\mathbb{P}(A \cap B \cap C)}{\mathbb{P}(C)} 
-= \mathbb{P}(A \cap B \mid C).$$
+\[ \mathbb{P}[J_{p+1} = j, X_p \leq t \mid J_p = l, J_{p-1}, \ldots, J_1, X_{p-1}, \ldots, X_1] = \mathbb{P}(J_{p+1} = j, X_p \leq t \mid J_p = l) \]
 
-The process giving the visited state at each time $t \in T$ is called a semi-Markov process.
+as $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process. This can be rewritten as $\mathbb{P}(J_{p+1} = j \mid J_p = l) \cdot \mathbb{P}(X_p \leq t \mid J_{p+1} = j, J_p = l)$, using the formula $(i)$: 
+$\mathbb{P}(A \cap B \mid C) = \mathbb{P}(A \mid C) \cdot \mathbb{P}(B \mid A \cap C)$, for any sets $A$, $B$, $C$. Thus: $P_{lj} \cdot \Phi_{lj}(t)$.
 
-We then denote $\alpha = (\alpha_1, \ldots, \alpha_D)$ the vector of initial probabilities of the process, where $\alpha_j = \mathbb{P}(J_1 = j)$, $j \in E$.
+Proof of $(i)$: $\mathbb{P}(A \mid C) \cdot \mathbb{P}(B \mid A \cap C) = \frac{\mathbb{P}(A \cap C)}{\mathbb{P}(C)} \cdot \frac{\mathbb{P}(B \cap A \cap C)}{\mathbb{P}(A \cap C)} = \frac{\mathbb{P}(A \cap B \cap C)}{\mathbb{P}(C)} = \mathbb{P}(A \cap B \mid C).$
 
-We suppose that the distribution of the sojourn time is a parametric one, discrete or continuous, depending on a set of parameters denoted by $\omega \in \Omega \subset \mathbb{R}^q$. Thus, the law of a semi-Markov process (SMP) $(J_p, X_p)_{p \geq 1}$ can be characterised with the multidimensional parameter $\theta = (\alpha, P, (\omega_{l,j})_{l \neq j \in E}) \in \Theta$ where $\Theta$ is the parameter space.
+The process giving the visited state at each time $t \in T$ is called a semi-Markov process. We then denote $\alpha = (\alpha_1, \ldots, \alpha_D)$ the vector of initial probabilities of the process, where $\alpha_j = \mathbb{P}(J_1 = j)$, $j \in E$.
 
-We denote by $\phi(t, \omega_{l,j})$ the probability (discrete time) or the density function (continuous time) of the distribution of the sojourn times for transitions between states $l$ and $j$, which is characterized by the vector of parameters $\omega = (\omega_{l,j})_{l \neq j \in E}$.
+We suppose that the distribution of the sojourn time is a parametric one, discrete or continuous, depending on a set of parameters denoted by $\omega \in \Omega \subset \mathbb{R}^q$. Thus, the law of a semi-Markov process (SMP) $(J_p, X_p)_{p \geq 1}$ can be characterised with the multidimensional parameter $\theta = (\alpha, P, (\omega_{l,j})_{l \neq j \in E}) \in \Theta$, where $\Theta$ is the parameter space. We denote by $\phi(t, \omega_{l,j})$ the probability (discrete time) or the density function (continuous time) of the distribution of the sojourn times for transitions between states $l$ and $j$, which is characterized by the vector of parameters $\omega = (\omega_{l,j})_{l \neq j \in E}$.
 
-### 2. The likelihood given observed trajectories
-
-## III.
-
-```{r}
-
-```
+### 2. The Likelihood Given Observed Trajectories
