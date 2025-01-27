@@ -26,7 +26,7 @@ We define $(J_p)_{p \geq 1}$, a homogeneous Markov chain taking values in a fini
 
 The process $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process and satisfies the following Markov property for $t \in T = [0, +\infty)$, $j \neq l \in E$: 
 
-\[ \mathbb{P}[J_{p+1} = j, X_p \leq t \mid J_p = l, J_{p-1}, \ldots, J_1, X_{p-1}, \ldots, X_1] = \mathbb{P}(J_{p+1} = j, X_p \leq t \mid J_p = l) \]
+$\mathbb{P}[J_{p+1} = j, X_p \leq t \mid J_p = l, J_{p-1}, \ldots, J_1, X_{p-1}, \ldots, X_1] = \mathbb{P}(J_{p+1} = j, X_p \leq t \mid J_p = l)$
 
 as $(J_p, X_p)_{p \geq 1}$ is a Markov renewal process. This can be rewritten as $\mathbb{P}(J_{p+1} = j \mid J_p = l) \cdot \mathbb{P}(X_p \leq t \mid J_{p+1} = j, J_p = l)$, using the formula $(i)$: 
 $\mathbb{P}(A \cap B \mid C) = \mathbb{P}(A \mid C) \cdot \mathbb{P}(B \mid A \cap C)$, for any sets $A$, $B$, $C$. Thus: $P_{lj} \cdot \Phi_{lj}(t)$.
@@ -38,3 +38,70 @@ The process giving the visited state at each time $t \in T$ is called a semi-Mar
 We suppose that the distribution of the sojourn time is a parametric one, discrete or continuous, depending on a set of parameters denoted by $\omega \in \Omega \subset \mathbb{R}^q$. Thus, the law of a semi-Markov process (SMP) $(J_p, X_p)_{p \geq 1}$ can be characterised with the multidimensional parameter $\theta = (\alpha, P, (\omega_{l,j})_{l \neq j \in E}) \in \Theta$, where $\Theta$ is the parameter space. We denote by $\phi(t, \omega_{l,j})$ the probability (discrete time) or the density function (continuous time) of the distribution of the sojourn times for transitions between states $l$ and $j$, which is characterized by the vector of parameters $\omega = (\omega_{l,j})_{l \neq j \in E}$.
 
 ### 2. The Likelihood Given Observed Trajectories
+
+As we consider a testing strategy based on the likelihood ratio $LR$, we have to define the likelihood of one Semi-Markov Process. To this purpose, we distinguish three different observation processes.
+
+#### 2.1. A given number of transitions
+
+\
+
+First, each trajectory $S_i$ is observed during $M_i$ transitions, without censoring for the last sojourn time, so that $S_i = (J_1^{i},X_1^{i},...,J_{M_i}^{i},X_{M_i}^{i},J_{M_i+1}^{i},X_{M_i+1}^{i})$. Therefore, the likelihood corresponding to $S_i$ is equal to:
+
+$$\mathcal{L}(S_i;\theta) = \mathbb{P}(J_1=J_1^{i},X_1 \leq X_1^{i},...,J_{M_i+1}=J_{M_i+1}^{i},X_{M_i+1} \leq X_{M_i+1}^{i})$$
+$$ = \mathbb{P}(J_1=J_1^{i},X_1 \leq X_1^{i},..., J_{M_i+1}=J_{M_i+1}^{i},X_{M_i} \leq X_{M_i}^{i})$$
+$$ * \mathbb{P}(X_{M_i+1} \leq X_{M_i+1}^{i}|J_1=J_1^{i},X_1 \leq X_1^{i},..., J_{M_i+1}=J_{M_i+1}^{i},X_{M_i} \leq X_{M_i}^{i})$$
+$$ = \mathbb{P}(J_{M_i+1}=J_{M_i+1}^{i},X_{M_i} \leq X_{M_i}^{i}|J_{M_i}=J_{M_i}^{i},...,J_1=J_1^{i},X_{M_i-1} \leq X_{M_i-1}^{i},...,X_1 \leq X_1^{i})$$
+$$  * \mathbb{P}(J_{M_i}=J_{M_i}^{i},...,J_1=J_1^{i},X_{M_i-1} \leq X_{M_i-1}^{i},...,X_1 \leq X_1^{i})$$
+$$ * \sum_{\substack{j \in E \\ j \neq J_{M_i+1}}} \mathbb{P}(X_{M_i+1} \leq X_{M_i+1}^{i}, J_{M_i+2} = j|J_1=J_1^{i},X_1 \leq X_1^{i},..., J_{M_i+1}=J_{M_i+1}^{i},X_{M_i} \leq X_{M_i}^{i})$$
+$$ = P_{J_{M_i}^{i}J_{M_i+1}^{i}} \phi(X_{M_i}^{i},\omega_{J_{M_i}^{i},J_{M_i+1}^{i}}) * \mathbb{P}(J_{M_i}=J_{M_i}^{i},...,J_1=J_1^{i},X_{M_i-1} \leq X_{M_i-1}^{i},...,X_1 \leq X_1^{i}) *\sum_{\substack{j \in E \\ j \neq J_{M_i+1}}} P_{J_{M_i+1}^{i}j} \phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i},j})$$
+$$ = \alpha_{J_1}^{i} * \prod_{k=1}^{M_i} P_{J_k^{i}J_{k+1}^{i}} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}}) *\sum_{\substack{j \in E \\ j \neq J_{M_i+1}}} P_{J_{M_i+1}^{i}j} \phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i},j})$$
+by applying Chapman-Kolmogorov repeatedly.
+
+If we suppose that $\forall j \neq l, \omega_{l,j} = \omega_l$, we have the last term that becomes:
+$$\sum_{\substack{j \in E \\ j \neq J_{M_i+1}}} P_{J_{M_i+1}^{i}j} \phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i},j}) = \sum_{\substack{j \in E \\ j \neq J_{M_i+1}}} \mathbb{P}(J_{M_i+2} = j|J_{M_i+1}=J_{M_i+1}^{i}) * \mathbb{P}(X_{M_i+1} \leq X_{M_i+1}^{i}|J_{M_i+1}=J_{M_i+1}^{i})$$
+$$ = 1 * \phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i}}) = \phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i}})$$
+So in this case, the expression of the likelihood is simplified:
+$$\mathcal{L}(S_i;\theta) = \alpha_{J_1}^{i} * \prod_{k=1}^{M_i} P_{J_k^{i}J_{k+1}^{i}} \phi(X_k^{i},\omega_{J_k^{i}}) *\phi(X_{M_i+1}^{i},\omega_{J_{M_i+1}^{i}})$$
+
+#### 2.2. A given time for observation
+
+\
+
+The second supposition that we can make is that each sequence $S_i$ is observed over a period $[0,T_i]$ of time, so that the last sojourn time $u_{T_i}^{i}$ is censored. By denoting by $M_i(T_i)$ the number of visited states before instant $T_i$, the sequence $S_i$ is equal to $(J_1^{i},X_1^{i},...,J_{M_i(T_i)}^{i},u_{T_i}^{i})$. $\overline H_{J_{M_i(T_i)}}(t)$ describes the survival function for the last visited state of the trajectory $S_i$. For $l \in E, t>0$, we have:
+$$\overline H_l^{i}(t) = \mathbb{P}(X_{M_i(T_i)}^{i}>t|J_{M_i(T_i)}^{i}=l) =1-\mathbb{P}(X_{M_i(T_i)}^{i} \leq t|J_{M_i(T_i)}^{i}=l)$$
+$$=1 -\sum_{\substack{j \in E,\ j \neq l}} \mathbb{P}(X_{M_i(T_i)}^{i} \leq t, J_{M_i(T_i)+1}^{i}=j|J_{M_i(T_i)}^{i}=l)$$
+$$ =1 - \sum_{\substack{j \in E,\ j \neq l}} P_{lj} * \phi(t,\omega_{l,j})$$
+
+We can define the likelihood of the trajectory $S_i$:
+$$\mathcal{L}(S_i;\theta) = \mathbb{P}(J_1=J_1^{i},X_1 \leq X_1^{i},...,J_{M_i(T_i)}=J_{M_i(T_i)}^{i},X_{M_i(T_i)} \geq u_{T_i}^{i})$$
+as the last sojourn time is censored,
+$$=\mathbb{P}(J_1=J_1^{i},X_1 \leq X_1^{i},...,J_{M_i(T_i)}=J_{M_i(T_i)}^{i}) * \mathbb{P}(X_{M_i(T_i)} \geq u_{T_i}^{i} |J_1=J_1^{i},X_1 \leq X_1^{i},...,J_{M_i(T_i)}=J_{M_i(T_i)}^{i})$$
+$$=\alpha_{J_1}^{i} * \prod_{k=1}^{M_i(T_i)-1} P_{J_k^{i}J_{k+1}^{i}} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}})$$
+$$ * \left( 1 - \sum_{\substack{j \in E,\\ j \neq J_{M_i(T_i)}^{i}}} \mathbb{P}\left( X_{M_i(T_i)} \leq u_{T_i}^{i},\ J_{M_i(T_i)+1}=j\ \middle|\ J_1=J_1^{i}, X_1 \leq X_1^{i}, \ldots, J_{M_i(T_i)}=J_{M_i(T_i)}^{i} \right)  \right)$$
+by the result of 2.1.
+$$= \alpha_{J_1}^{i} * \prod_{k=1}^{M_i(T_i)-1} P_{J_k^{i}J_{k+1}^{i}} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}}) * \left( 1 - \sum_{\substack{j \in E,\\ j \neq J_{M_i(T_i)}^{i}}} P_{J_{M_i(T_i)}^{i}j} \phi(u_{T_i}^{i}, \omega_{J_{M_i(T_i)}^{i}, j}) \right)$$
+$$=\alpha_{J_1}^{i} * \left(\prod_{k=1}^{M_i(T_i)-1} P_{J_k^{i}J_{k+1}^{i}} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}})\right) * \overline H_{J_{M_i(T_i)}^{i}}(u_{T_i}^{i})$$
+
+We can note that when the sojourn time distribution only depends on the current state $l$, we have $\overline H_l^{i}(t) = 1-\mathbb{P}(X_{M_i(T_i)}^{i} \leq t|J_{M_i(T_i)}^{i}=l) = 1 - \phi(t, \omega_l)$.
+
+#### 2.3. Observation until absorption
+
+\
+
+If we consider that our processes may have an absorbing state, we suppose that we observe a trajectory $S_i$ until absorption. To simplify, we relabel the states such that the absorbing state is the last state D. It is assumed that the absorbing state can not be reached during the first transition so that $\alpha_D = \mathbb{P}(J_1=D)=0$, and $\Phi_{lj}(t)$ is only defined for $l \in E_{\setminus D},\ j \in E$ and $l \neq j$. By denoting by $M_i(D)$ the number of visited states before absorption, we can write the likelihood of a trajectory $S_i= (J_1^{i},X_1^{i},...,J_{M_i(D)}^{i},X_{M_i(D)}^{i},J_{M_i(D)+1}^{i}=D)$:
+$$\mathcal{L}(S_i;\theta) = \mathbb{P}(J_1=J_1^{i},X_1 \leq X_1^{i},...,J_{M_i(D)}=J_{M_i(D)}^{i},X_{M_i(D)} \leq X_{M_i(D)}^{i},J_{M_i(D)+1}=D)$$
+$$= \mathbb P (J_{M_i(D)+1}=D, X_{M_i(D)} \leq X_{M_i(D)}^{i} | J_1=J_1^{i},X_1 \leq X_1^{i},...,X_{M_i(D)-1} \leq X_{M_i(D)-1}^{i},J_{M_i(D)}=J_{M_i(D)}^{i})$$
+$$ * \mathbb P (J_1=J_1^{i},X_1 \leq X_1^{i},...,X_{M_i(D)-1} \leq X_{M_i(D)-1}^{i},J_{M_i(D)}=J_{M_i(D)}^{i})$$
+$$ = P_{J_{M_i(D)}^{i}D} * \phi (X_{M_i(D)}^{i}, \omega_{J_{M_i(D)}^{i},D}) * \mathbb P (J_{M_i(D)}=J_{M_i(D)}^{i}, X_{M_i(D)-1} \leq X_{M_i(D)-1}^{i} | ...,J_{M_i(D)-1}=J_{M_i(D)-1}^{i},X_{M_i(D)-2} \leq X_{M_i(D)-2}^{i}) $$
+$$ * \mathbb P(J_1=J_1^{i},...,J_{M_i(D)-1}=J_{M_i(D)-1}^{i},X_{M_i(D)-2} \leq X_{M_i(D)-2}^{i})$$
+$$ = P_{J_{M_i(D)}^{i}D} * \phi (X_{M_i(D)}^{i}, \omega_{J_{M_i(D)}^{i}D}) * P_{J_{M_i(D)-1}^{i}J_{M_i(D)}^{i}} * \phi (X_{M_i(D)-1}^{i}, \omega_{J_{M_i(D)-1}^{i},M_{i(D)}^{i}})$$
+$$ * \mathbb P(J_1=J_1^{i},...,J_{M_i(D)-1}=J_{M_i(D)-1}^{i},X_{M_i(D)-2} \leq X_{M_i(D)-2}^{i})$$
+$$= \alpha_{J_1}^{i} * \phi(X_1^{i}, \omega_{J_1^{i},J_2^{i}}) * \left( \prod_{k=2}^{M_i(D)} P_{J_{k-1}^{i}J_k^{i}} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}}) \right) * P_{J_{M_i(D)}^{i}D}$$
+by iterating.
+
+To simplify future computations, we write:
+$$\mathcal{L}(S_i;\theta) = \mathcal{L_1}(S_i;\alpha) * \mathcal{L_2}(S_i;\omega) * \mathcal{L_3}(S_i;P)$$
+with $\mathcal{L_1}(S_i;\alpha) = \alpha_{J_1^{i}}$ ; $\mathcal{L_2}(S_i;\omega)= \prod_{k=1}^{M_i(D)} \phi(X_k^{i},\omega_{J_k^{i},J_{k+1}^{i}})$ and $\mathcal{L_3}(S_i;P)= \prod_{k=2}^{M_i(D)+1} P_{J_{k-1}^{i}J_k^{i}}$.
+
+## III. Two samples hypothesis testing
+
