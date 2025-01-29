@@ -1,0 +1,75 @@
+---
+title: "Mémoire brouillon"
+output: pdf_document
+date: "2025-01-29"
+---
+
+rm(list = ls())
+
+## 3 Two samples hypothesis testing
+# 3.1 Global likelihood ratio test
+
+pour permettre l'estimation des paramètres du SMP : optimx : rapide test differentes méthodes,pas besoin de gerer les contraintes
+Newton Raphson : 'nlm()', convergence rapide mais peut échouer si la log-vraisemblance est trop complexe
+
+# Pour calculer la Log-Vraisemblance :
+-Structure conforme à l'équation (4)
+-Utilistion de dgamma et dweibull pour les lois paramétrique
+
+les tests sont développés pour des lois à 2 paramètres (Gamma/weibull), pourquoi ? dans la section 3.2 lors du calcul des degrés de liberté pour le test asymptotique : |w|=2. De plus dans la section 5.1 et 6.2.2 pour la simulation on considère ces deux distributions. Les équations (2) et (4) supposent une parmétrisation à 2 variables pour les MLE
+ce choix est pertinent par : la flexibilité de ces lois pour modéliser des durées non exponentielles, leur adéquation avec les asymptotiques du test du rapport de vraissemblance.
+```{r}
+#Fonction qui calcule la log-vraisemblance d'un ensemble de trajectoires d'un SMP.
+#Params : contient alpha : les proba initiales des états, P la matrice de transition entre les états, omega la liste des paramètres des lois de durée associées aux états
+#trajectories : liste avec les trajectoires observées
+#dist_type : type de distribution pour les temps de séjour, ici prend que gamma ou Weibull.
+log_likelihood <- function(params, trajectories, absorbing_state, dist_type) {
+  alpha <- params$alpha
+  P <- params$P
+  omega <- params$omega #On extrait les données depuis params
+  logL <- 0 # Initialisation de la log vraisemblance
+  
+  for (traj in trajectories) { # On parcourt toutes les trajectoires
+    states <- traj$states #ordre des états
+    times <- traj$times #durées passées dans chaque état
+    
+    # Terme initial alpha_j1
+    logL <- logL + log(alpha[states[1]]) #ajoute la proba initiale de commencer dans un état s1 est alpha_j1
+    
+    for (i in 1:(length(states)-1)) {#Boucle sur les transitions entre états
+      from <- states[i] # Etat de départ
+      to <- states[i+1] # Etat d'arrivée
+      
+      # Terme de transition P_ij
+      logL <- logL + log(P[from, to]) #ajoute la proba de transition entre les états from et to
+      
+      # Terme de durée (sauf dernière transition absorbante)
+      if (to != absorbing_state) {#Si to est un état absorbant on passe à la transition suivante
+        if (dist_type == "gamma") {#Cas ou la loi des durées suit une distribution gamma.
+          logL <- logL + dgamma(times[i],shape=omega[[from]][1],rate=omega[[from]][2], log=TRUE)#Shape = paramètre k, rate=parametre teta
+        } else {#Cas ou la loi des durées suit une distribution Weibull
+          logL <- logL + dweibull(times[i],shape=omega[[from]][1],scale=omega[[from]][2], log=TRUE)
+        }
+      }
+    }
+  }
+  return(logL)
+}
+```
+
+
+
+## Estimation des paramètres
+
+méthode : Maximum de vraisemblance
+Differentes méthodes pour l'estimation des paramètres du SMP :
+optimx : rapide test differentes méthodes,pas besoin de gerer les contraintes
+Newton Raphson : 'nlm()', convergence rapide mais peut échouer si la log-vraisemblance est trop complexe
+
+
+
+
+
+
+
+
