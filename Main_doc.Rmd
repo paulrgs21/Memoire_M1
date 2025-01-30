@@ -256,3 +256,56 @@ Nous cherchons à comparer deux SMP (Semi Markov Process) et à tester s'ils sui
 
 - Si $T_0$ est beaucoup plus grand que les $T^*$ → $H_0$ est suspect.
 - Si $T_0$ est du même ordre de grandeur que les $T^*$ → $H_0$ est crédible.
+
+
+#### Code R 
+
+- Estimation du maximum de vraisemblance :
+
+```{r}
+#On vient faire appel à la fonction calculant la log-vraisemblance d'un ensemble de trajectoires d'un SMP
+
+library(stats4)
+
+estimate_mle <- function(param, trajectories, absorbing_state, dist_type) {
+  
+  alpha <- param$alpha
+  P <- param$P
+  omega <- param$omega
+
+  mle <- mle(-log_likelihood, #On prend l'opposé du likelihood car dans cette librairie, la fonction mle minimise
+                 start = list(params),
+                 fixed = list(param, trajectories, absorbing_state, 
+                              dist_type),
+                 method = "L-BFGS-B")
+
+  return(mle)
+}
+
+
+#on vient générer un SMP suivant les paramètres du MLE sous H0 :
+
+generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_transitions = n1+n2) {
+  states <- numeric(max_transitions)
+  times <- numeric(max_transitions)
+  
+  states[1] <- sample(1:length(params$alpha), 1, prob = params$alpha) 
+  for (i in 1:(max_transitions - 1)) {
+    current_state <- states[i]
+    
+    if (current_state == absorbing_state) break #stop  si état absorbant
+    
+    states[i + 1] <- sample(1:nrow(params$P), 1, prob = params$P[current_state, ])
+    
+    if (dist_type == "gamma") {
+      times[i] <- rgamma(1, shape = params$omega[[current_state]][1], rate = params$omega[[current_state]][2])
+    } else if (dist_type == "weibull") {
+      times[i] <- rweibull(1, shape = params$omega[[current_state]][1], scale = params$omega[[current_state]][2])
+    }
+  }
+  
+  return(list(states = states[1:(i + 1)], times = times[1:i]))
+}
+
+
+#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
