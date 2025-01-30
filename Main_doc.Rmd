@@ -1,13 +1,20 @@
 ---
 title: "Master's Thesis"
-subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C. Frascola et. al, 2022."
 author: "Paul Rongieras, Valentin Rivet, Raphaël Capranico"
 date: "2025-01-20"
 output:
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
   pdf_document:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
+subtitle: >
+  C. Frascola et al., 2022.
+  Based on the article: "Two-Sample Tests for Semi-Markov Processes with 
+  Parametric Sojourn Time Distributions: An Application in Sensory Analysis", 
 ---
 
 ```{r setup, include=FALSE}
@@ -212,3 +219,40 @@ La p-valeur est alors donnée par :
 p\text{-valeur} = P(Y \geq -2\ln(LR)) \quad \text{avec } Y \sim \chi^2(d)
 \]
 
+
+
+### 3) Parametric Bootstrap
+
+#### Introduction
+
+Le parametric bootstrap est utilisé lorsque la distribution de $\ln(LR)$ sous $H_0$ n'est pas connue. Une approximation empirique peut alors être obtenue en générant des trajectoires simulées sous $H_0$.
+
+#### Objectif
+
+Nous cherchons à comparer deux SMP (Semi Markov Process) et à tester s'ils suivent la même loi.
+
+#### Méthodologie
+
+1. Estimation du paramètre $\theta$ par maximum de vraisemblance.
+2. Calcul de la statistique de test observée avec les données réelles :
+   $$
+   T_0 = \ln(LR(S_1))
+   $$
+   - Concrètement, $T_0$ permet de déterminer si les données observées sont plus compatibles avec $H_0$ ou $H_1$.
+3. Génération de $R$ échantillons en supposant $H_0$ vraie avec les paramètres estimés.
+4. Calcul de la statistique de test pour chaque échantillon simulé :
+   $$
+   T^* = \ln(LR(S^*))
+   $$
+   - Cela permet d'obtenir une distribution empirique de la statistique sous $H_0$.
+5. Calcul de la p-valeur :
+   $$
+   p_{\text{boot}} = \frac{\#(T^* \leq T_0)}{R}
+   $$
+   - Si la p-valeur est plus petite qu'un seuil $\alpha$, alors on peut rejeter $H_0$.  
+   - Cela signifie que les trajectoires des deux populations ne suivent pas la même loi.
+
+#### Interprétation de la p-valeur
+
+- Si $T_0$ est beaucoup plus grand que les $T^*$ → $H_0$ est suspect.
+- Si $T_0$ est du même ordre de grandeur que les $T^*$ → $H_0$ est crédible.
