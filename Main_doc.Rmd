@@ -11,9 +11,20 @@ output:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
+<<<<<<< HEAD
 subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with
   Frascola et. al, 2022."
   Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C.
+=======
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
+subtitle: >
+  C. Frascola et al., 2022.
+  Based on the article: "Two-Sample Tests for Semi-Markov Processes with 
+  Parametric Sojourn Time Distributions: An Application in Sensory Analysis", 
+>>>>>>> 9c49a1137cd39f7dbd5d871fbe1c4b928665ba0f
 ---
 
 ```{r setup, include=FALSE}
@@ -148,7 +159,7 @@ Pour calculer la p-valeur de notre test, on va montrer que :
 
 
 
-Soit \(\mathcal{L}(\theta)\) la log-vraisemblance, avec :
+Soit \(\mathcal{l}(\theta)\) la log-vraisemblance, avec :
 
 - \(\hat{\theta}\) : Estimateur du maximum de vraisemblance (MLE) de \(\theta\),
 - \(\theta_0\) : Valeur de \(\theta\) sous \(H_0\).
@@ -156,25 +167,25 @@ Soit \(\mathcal{L}(\theta)\) la log-vraisemblance, avec :
 Par développement en série de Taylor autour de \(\hat{\theta}\) :
 
 \[
-\mathcal{L}(\theta) = \mathcal{L}(\hat{\theta}) + \frac{\partial \mathcal{L}}{\partial \theta} (\theta - \hat{\theta}) + \frac{1}{2} (\theta - \hat{\theta})^\top \frac{\partial^2 \mathcal{L}}{\partial \theta^2} (\theta - \hat{\theta})
+\mathcal{l}(\theta) = \mathcal{l}(\hat{\theta}) + \frac{\partial \mathcal{l}}{\partial \theta} (\theta - \hat{\theta}) + \frac{1}{2} (\theta - \hat{\theta})^\top \frac{\partial^2 \mathcal{l}}{\partial \theta^2} (\theta - \hat{\theta})
 \]
 
 Par définition du MLE, on sait que :
 
 \[
-\frac{\partial \mathcal{L}}{\partial \theta} \big|_{\theta = \hat{\theta}} = 0
+\frac{\partial \mathcal{l}}{\partial \theta} \big|_{\theta = \hat{\theta}} = 0
 \]
 
 Cela implique que :
 
 \[
-2[\mathcal{L}(\theta_0) - \mathcal{L}(\hat{\theta})] = (\theta_0 - \hat{\theta})^\top \left(- \frac{\partial^2 \mathcal{L}}{\partial \theta^2}\right) (\theta_0 - \hat{\theta})
+2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = (\theta_0 - \hat{\theta})^\top \left(- \frac{\partial^2 \mathcal{l}}{\partial \theta^2}\right) (\theta_0 - \hat{\theta})
 \]
 
 Ou encore :
 
 \[
--2[\mathcal{L}(\theta_0) - \mathcal{L}(\hat{\theta})] = -2\ln\left(\frac{\mathcal{L}(\theta_0)}{\mathcal{L}(\hat{\theta})}\right) = -2\ln(LR)
+-2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = -2\ln\left(\frac{\mathcal{L}(\theta_0)}{\mathcal{L}(\hat{\theta})}\right) = -2\ln(LR)
 \]
 
 
@@ -218,3 +229,93 @@ La p-valeur est alors donnée par :
 p\text{-valeur} = P(Y \geq -2\ln(LR)) \quad \text{avec } Y \sim \chi^2(d)
 \]
 
+
+
+### 3) Parametric Bootstrap
+
+#### Introduction
+
+Le parametric bootstrap est utilisé lorsque la distribution de $\ln(LR)$ sous $H_0$ n'est pas connue. Une approximation empirique peut alors être obtenue en générant des trajectoires simulées sous $H_0$.
+
+#### Objectif
+
+Nous cherchons à comparer deux SMP (Semi Markov Process) et à tester s'ils suivent la même loi.
+
+#### Méthodologie
+
+1. Estimation du paramètre $\theta$ par maximum de vraisemblance.
+2. Calcul de la statistique de test observée avec les données réelles :
+   $$
+   T_0 = \ln(LR(S_1))
+   $$
+   - Concrètement, $T_0$ permet de déterminer si les données observées sont plus compatibles avec $H_0$ ou $H_1$.
+3. Génération de $R$ échantillons en supposant $H_0$ vraie avec les paramètres estimés.
+4. Calcul de la statistique de test pour chaque échantillon simulé :
+   $$
+   T^* = \ln(LR(S^*))
+   $$
+   - Cela permet d'obtenir une distribution empirique de la statistique sous $H_0$.
+5. Calcul de la p-valeur :
+   $$
+   p_{\text{boot}} = \frac{\#(T^* \leq T_0)}{R}
+   $$
+   - Si la p-valeur est plus petite qu'un seuil $\alpha$, alors on peut rejeter $H_0$.  
+   - Cela signifie que les trajectoires des deux populations ne suivent pas la même loi.
+
+#### Interprétation de la p-valeur
+
+- Si $T_0$ est beaucoup plus grand que les $T^*$ → $H_0$ est suspect.
+- Si $T_0$ est du même ordre de grandeur que les $T^*$ → $H_0$ est crédible.
+
+
+#### Code R 
+
+- Estimation du maximum de vraisemblance :
+
+```{r}
+#On vient faire appel à la fonction calculant la log-vraisemblance d'un ensemble de trajectoires d'un SMP
+
+library(stats4)
+
+estimate_mle <- function(param, trajectories, absorbing_state, dist_type) {
+  
+  alpha <- param$alpha
+  P <- param$P
+  omega <- param$omega
+
+  mle <- mle(-log_likelihood, #On prend l'opposé du likelihood car dans cette librairie, la fonction mle minimise
+                 start = list(params),
+                 fixed = list(param, trajectories, absorbing_state, 
+                              dist_type),
+                 method = "L-BFGS-B")
+
+  return(mle)
+}
+
+
+#on vient générer un SMP suivant les paramètres du MLE sous H0 :
+
+generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_transitions = n1+n2) {
+  states <- numeric(max_transitions)
+  times <- numeric(max_transitions)
+  
+  states[1] <- sample(1:length(params$alpha), 1, prob = params$alpha) 
+  for (i in 1:(max_transitions - 1)) {
+    current_state <- states[i]
+    
+    if (current_state == absorbing_state) break #stop  si état absorbant
+    
+    states[i + 1] <- sample(1:nrow(params$P), 1, prob = params$P[current_state, ])
+    
+    if (dist_type == "gamma") {
+      times[i] <- rgamma(1, shape = params$omega[[current_state]][1], rate = params$omega[[current_state]][2])
+    } else if (dist_type == "weibull") {
+      times[i] <- rweibull(1, shape = params$omega[[current_state]][1], scale = params$omega[[current_state]][2])
+    }
+  }
+  
+  return(list(states = states[1:(i + 1)], times = times[1:i]))
+}
+
+
+#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
