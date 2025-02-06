@@ -183,7 +183,7 @@ Ou encore :
 Par la loi des grands nombres :
 
 \[
-\frac{1}{n} \frac{\partial^2 \mathcal{L}}{\partial \theta^2} \to E\left[-\frac{\partial^2 \mathcal{L}}{\partial \theta^2}\right]
+\frac{1}{n} \frac{\partial^2 \mathcal{L}}{\partial \theta^2} \to E\left[\frac{\partial^2 \mathcal{L}}{\partial \theta^2}\right]
 \]
 
 Alors, en utilisant l'information de Fisher \(I_{\theta_0}\) :
@@ -310,3 +310,37 @@ generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_tran
 
 
 #On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
+
+
+#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
+
+parametric_bootstrap <- function(trajectories, absorbing_state, dist_type, R) {
+  
+  # On calcule les paramètres du MLE
+  mle_params <- estimate_mle(trajectories, absorbing_state, dist_type)
+  
+  # Calcul de la statistique de test T_l A MODIFIER CAR NE FAIS PAS LE RAPPORT DE VRAISEMBLANCE, SIMPLE CALCUL SOUS H0 ICI
+  T_l <- log_likelihood(mle_params, trajectories, absorbing_state, dist_type)
+  
+  # Compteur pour la p-value
+  count <- 0
+  for (r in 1:R) {
+    
+    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
+    bootstrap_trajectories <- lapply(1:length(trajectories), function(i) {
+      generate_smp_trajectory(mle_params, absorbing_state, dist_type)
+    })
+    
+    # Calcule la stat de test T* pour les trajectoires générées
+    T_star <- log_likelihood(mle_params, bootstrap_trajectories, absorbing_state, dist_type)
+    
+    # Itérations pour le calcul de la p-value
+    if (T_star <= T_l) {
+      count <- count + 1
+    }
+  }
+  
+  p_boot <- count / R
+  
+  return(p_boot) #renvoie direct la p-value
+}
