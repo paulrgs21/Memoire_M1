@@ -1,13 +1,19 @@
 ---
 title: "Master's Thesis"
-subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C. Frascola et. al, 2022."
 author: "Paul Rongieras, Valentin Rivet, Raphaël Capranico"
 date: "2025-01-20"
 output:
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
   pdf_document:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
+subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with
+  Frascola et. al, 2022."
+  Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C.
 ---
 
 ```{r setup, include=FALSE}
