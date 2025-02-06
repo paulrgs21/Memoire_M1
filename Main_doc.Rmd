@@ -261,7 +261,7 @@ Nous cherchons à comparer deux SMP (Semi Markov Process) et à tester s'ils sui
 
 #### Code R 
 
-- Estimation du maximum de vraisemblance :
+- PARAMETRIC BOOTSTRAP
 
 ```{r}
 #On vient faire appel à la fonction calculant la log-vraisemblance d'un ensemble de trajectoires d'un SMP
