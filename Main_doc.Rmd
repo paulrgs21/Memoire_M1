@@ -11,21 +11,12 @@ output:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
-<<<<<<< HEAD
-subtitle: "Based on the article: \"Two-Sample Tests for Semi-Markov Processes with
-  Frascola et. al, 2022."
-  Parametric Sojourn Time Distributions: An Application in Sensory Analysis\", C.
-=======
-  html_document:
-    toc: true
-    toc_depth: '3'
-    df_print: paged
 subtitle: >
   C. Frascola et al., 2022.
   Based on the article: "Two-Sample Tests for Semi-Markov Processes with 
-  Parametric Sojourn Time Distributions: An Application in Sensory Analysis", 
->>>>>>> 9c49a1137cd39f7dbd5d871fbe1c4b928665ba0f
+  Parametric Sojourn Time Distributions: An Application in Sensory Analysis"
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
