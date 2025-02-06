@@ -1,21 +1,4 @@
----
-title: "Mémoire brouillon"
-output: pdf_document
-date: "2025-01-29"
----
 
-rm(list = ls())
-
-## 3 Two samples hypothesis testing
-# 3.1 Global likelihood ratio test
-
-# Pour calculer la Log-Vraisemblance :
--Structure conforme à l'équation (4)
--Utilistion de dgamma et dweibull pour les lois paramétrique
-
-les tests sont développés pour des lois à 2 paramètres (Gamma/weibull), pourquoi ? dans la section 3.2 lors du calcul des degrés de liberté pour le test asymptotique : |w|=2. De plus dans la section 5.1 et 6.2.2 pour la simulation on considère ces deux distributions. Les équations (2) et (4) supposent une parmétrisation à 2 variables pour les MLE
-ce choix est pertinent par : la flexibilité de ces lois pour modéliser des durées non exponentielles, leur adéquation avec les asymptotiques du test du rapport de vraissemblance.
-```{r}
 #Fonction qui calcule la log-vraisemblance d'un ensemble de trajectoires d'un SMP.
 #Params : contient alpha : les proba initiales des états, P la matrice de transition entre les états, omega la liste des paramètres des lois de durée associées aux états
 #trajectories : liste avec les trajectoires observées
@@ -48,27 +31,9 @@ log_likelihood <- function(params, trajectories, absorbing_state, dist_type) {
           logL <- logL + dweibull(times[i],shape=omega[[from]][1],scale=omega[[from]][2], log=TRUE)
         } else if (dist_type == "exponential") {
           logL <- logL + dexp(times[i], rate = omega[[from]][1], log = TRUE)
-          }
+        }
       }
     }
   }
   return(logL)
 }
-```
-
-
-
-## Estimation des paramètres
-
-méthode : Maximum de vraisemblance
-Differentes méthodes pour l'estimation des paramètres du SMP :
-optimx : rapide test differentes méthodes,pas besoin de gerer les contraintes
-Newton Raphson : 'nlm()', convergence rapide mais peut échouer si la log-vraisemblance est trop complexe
-
-
-
-
-
-
-
-
