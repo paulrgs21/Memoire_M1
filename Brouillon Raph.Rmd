@@ -151,10 +151,15 @@ compute_LR <- function(trajectories1, trajectories2, absorbing_state, dist_type)
 # 3.2 Approche asymptotique -------------------------------------------------
 On utilise simplement le fait que -2*ln(LR) converge en distribution vers khi2.
 ```{r}
+#Arguments : LR_val : Le rapport de vraisemblance entre H0 et H1.
+#n_states : le nombre d'états dans le modèle SMP
+
+
+
 compute_asymptotic_pvalue <- function(LR_val, n_states, absorbing_state, dist_type) {
   # Calcul des degrés de liberté
-  k <- ifelse(dist_type %in% c("gamma", "weibull"), 2, 1)
-  if (is.null(absorbing_state)) {
+  k <- ifelse(dist_type %in% c("gamma", "weibull"), 2, 1) #calcul du nombre de paramètres 
+  if (is.null(absorbing_state)) { #le degré de liberté depend de la présence ou non d'un état absorbant.
     d <- n_states^2 - n_states - 1 + k*n_states*(n_states-1)
   } else {
     d <- (n_states-1)^2 - 2*(n_states-1) + k*(n_states-1)^2
