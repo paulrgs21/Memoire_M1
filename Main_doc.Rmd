@@ -221,6 +221,83 @@ p\text{-valeur} = P(Y \geq -2\ln(LR)) \quad \text{avec } Y \sim \chi^2(d)
 \]
 
 
+\newpage
+
+## III. Two-Sample Hypothesis Testing
+
+### 3.1 Global Likelihood Ratio Test
+
+We aim to compare the laws of two Semi-Markov Processes (SMPs) using two independent samples of trajectories drawn from two different populations. Let the probability law of the SMP in the first population be characterized by \(\theta_1 = (\alpha^1, \mathbf{P}^1, (\omega_{\ell,j}^1)_{\ell,j \in E, j \neq \ell})\), and in the second population by \(\theta_2 = (\alpha^2, \mathbf{P}^2, (\omega_{\ell,j}^2)_{\ell,j \in E, j \neq \ell})\).
+
+We consider the following hypothesis test:
+
+\[
+H_0: \theta_1 = \theta_2 \quad \text{vs} \quad H_1: \theta_1 \neq \theta_2
+\]
+
+Under the null hypothesis \(H_0\), we define \(\theta = \theta_1 = \theta_2 = (\alpha, \mathbf{P}, (\omega_{\ell,j})_{\ell,j \in E, j \neq \ell})\).
+
+Suppose we observe \(n_1\) independent trajectories from the first population and \(n_2\) independent trajectories from the second population. For \(b \in \{1, 2\}\) and \(i = 1, \ldots, n_b\), let \(S_i^b\) denote the \(i\)-th observed trajectory from population \(b\). The pooled sample is denoted by \(S_n = (S_1^1, \ldots, S_{n_1}^1, S_{n_1+1}^2, \ldots, S_{n_1+n_2}^2)\).
+
+The likelihood ratio test is based on the logarithm of the ratio between the maximum likelihood under \(H_0\) and the maximum likelihood under \(H_1\). By the independence assumption, the likelihood ratio (LR) can be expressed as:
+
+\[
+LR = \frac{\max_{\theta \in \Theta} \left( \prod_{i=1}^{n_1} \mathcal{L}(S_i^1; \theta) \times \prod_{j=n_1+1}^{n_1+n_2} \mathcal{L}(S_j^2; \theta) \right)}{\max_{(\theta_1, \theta_2) \in \Theta \times \Theta} \left( \prod_{i=1}^{n_1} \mathcal{L}(S_i^1; \theta_1) \times \prod_{j=n_1+1}^{n_1+n_2} \mathcal{L}(S_j^2; \theta_2) \right)}
+\]
+
+Under \(H_0\), the trajectories from both populations are combined into a single dataset, as \(H_0\) assumes that both populations follow the same model. This combined dataset is used to estimate the parameters under the null hypothesis.
+
+We reject the null hypothesis \(H_0\) for small values of the statistic \(LR\). For a given significance level \(\gamma \in (0, 1)\), we seek the critical value \(c_\gamma\) such that, under \(H_0\), \(\mathbb{P}_{H_0}[LR \leq c_\gamma] = \gamma\). The main challenge is to compute the \(p\)-value corresponding to the observed sample.
+
+#### Log-Likelihood Computation
+The log-likelihood is computed using the structure defined in Equation (4). For parametric distributions such as Gamma and Weibull, the functions `dgamma` and `dweibull` are used to evaluate the probability density functions. These distributions are chosen because they are flexible enough to model non-exponential sojourn times and are well-suited for the asymptotic properties of the likelihood ratio test. Additionally, the exponential distribution is also considered due to its simplicity and ease of numerical optimization.
+
+#### Parameter Estimation
+The parameters of the SMP are estimated using maximum likelihood estimation (MLE). Different numerical optimization methods are employed to maximize the log-likelihood:
+
+- **`optimx`**: This method is fast and tests multiple optimization algorithms without requiring manual handling of constraints.
+- **Newton-Raphson (`nlm` in R)**: This method converges quickly but may fail if the log-likelihood is too complex or if the initial parameter estimates are far from the true values.
+
+### 3.2 Asymptotic Distribution of \(-2 \ln(LR)\)
+
+The first approach to compute the \(p\)-value is based on the asymptotic distribution of the likelihood ratio test. Under general conditions, if \(H_0\) is true, and if \(n_1\) and \(n_2\) tend to infinity with \(n_1/(n_1 + n_2)\) tending to some constant \(a \in (0, 1)\), then \(-2 \ln(LR)\) converges in distribution to a \(\chi^2(d)\) distribution, where \(d\) is the difference in the number of parameters estimated under \(H_1\) and \(H_0\).
+
+In the context of Semi-Markov processes, the asymptotic distribution of \(-2 \ln(LR)\) has not been rigorously established under general assumptions. However, for Markov processes, similar results have been obtained for two-sample tests in both discrete and continuous time (Anderson and Goodman, 1957; Billingsley, 1961). For Semi-Markov processes, consistency and asymptotic normality of parameter estimators have been proven under weak conditions (Trevezas, 2011; Barbu et al., 2017).
+
+In our framework, the number of constrained parameters under \(H_0\) is:
+
+\[
+d = 
+\begin{cases}
+D^2 - D - 1 + |\omega| \times D(D - 1) & \text{without any absorbing state} \\
+D^2 - 2D + |\omega| \times (D - 1)^2 & \text{when the last state is absorbing}
+\end{cases}
+\]
+
+where \(|\omega| = 2\) for the Gamma and Weibull distributions, as these are two-parameter distributions. This choice is motivated by their flexibility in modeling non-exponential sojourn times and their suitability for the asymptotic properties of the likelihood ratio test. The exponential distribution is also included due to its simplicity in numerical optimization.
+
+Let \(T_l = \ln[LR(S_n)]\) be the logarithm of the likelihood ratio based on the pooled sample. The \(p\)-value of the test is defined as:
+
+\[
+p_{\text{asymp}} = \mathbb{P}[Y \geq -2T_l]
+\]
+
+where \(Y\) is a random variable with a \(\chi^2(d)\) distribution.
+
+### 3.3 Parametric Bootstrap
+
+The second approach to compute the \(p\)-value is based on the parametric bootstrap, which approximates the distribution of \(\ln(LR)\) under \(H_0\) by simulating trajectories under the null hypothesis.
+
+Let \(\widehat{\theta}_l\) be the maximum likelihood estimator of \(\theta\) based on the pooled sample \(S_n\). The distribution of the test statistic \(\ln(LR)\) is approximated under \(H_0\) by generating \(n\) independent trajectories \(S_n^* = (S_1^{1^*}, \ldots, S_{n_1}^{1^*}, S_{n_1+1}^{2^*}, \ldots, S_{n_1+n_2}^{2^*})\) of an SMP with parameter \(\widehat{\theta}_l\). This procedure is repeated \(R\) times (typically \(R = 1000\)) to approximate the distribution of \(\ln(LR)\) under \(H_0\).
+
+The \(p\)-value is then calculated as:
+
+\[
+p_{\text{boot}} = \frac{\#(T^* \leq T_l)}{R}
+\]
+
+where \(\#\) denotes the cardinality, and \(T^* = \ln[LR(S_n^*)]\) is the test statistic computed on the simulated samples.
+
 
 ### 3) Parametric Bootstrap
 
