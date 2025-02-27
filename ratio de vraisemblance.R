@@ -4,14 +4,14 @@
 # dist_type : Le type de distribution pour les durées
 
 
-compute_LR <- function(trajectories1, trajectories2, absorbing_state, dist_type) {
+compute_LR <- function(trajectories1, trajectories2, absorbing_state, dist_type, n_states) {
   # Estimation sous H0 (données regroupées)
   mle_H0 <- estimate_SMP_params(c(trajectories1, trajectories2), 
-                                absorbing_state, dist_type)
+                                absorbing_state, dist_type, n_states)
   
   # Estimation sous H1 (données séparées)
-  mle_H1_t1 <- estimate_SMP_params(trajectories1, absorbing_state, dist_type)
-  mle_H1_t2 <- estimate_SMP_params(trajectories2, absorbing_state, dist_type)
+  mle_H1_t1 <- estimate_SMP_params(trajectories1, absorbing_state, dist_type, n_states)
+  mle_H1_t2 <- estimate_SMP_params(trajectories2, absorbing_state, dist_type, n_states)
   
   # Calcul des log-vraisemblances
   logL_H0 <- log_likelihood(mle_H0, c(trajectories1, trajectories2),absorbing_state, dist_type)

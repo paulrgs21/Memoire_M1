@@ -27,9 +27,11 @@ log_likelihood <- function(params, trajectories, absorbing_state, dist_type) {
       if (to != absorbing_state) {#Si to est un état absorbant on passe à la transition suivante
         if (dist_type == "gamma") {#Cas ou la loi des durées suit une distribution gamma.
           logL <- logL + dgamma(times[i],shape=omega[[from]][1],rate=omega[[from]][2], log=TRUE)#Shape = paramètre k, rate=parametre teta
-        } else if (dist_type == "weibull") {#Cas ou la loi des durées suit une distribution Weibull
+        } 
+        else if (dist_type == "weibull") {#Cas ou la loi des durées suit une distribution Weibull
           logL <- logL + dweibull(times[i],shape=omega[[from]][1],scale=omega[[from]][2], log=TRUE)
-        } else if (dist_type == "exponential") {
+        }
+        else if (dist_type == "exponential") {
           logL <- logL + dexp(times[i], rate = omega[[from]][1], log = TRUE)
         }
       }
