@@ -148,17 +148,15 @@ Pour calculer la p-valeur de notre test, on va montrer que :
 -2\ln(LR) \sim \chi^2(d)
 \]
 
-
-
 Soit \(\mathcal{l}(\theta)\) la log-vraisemblance, avec :
 
 - \(\hat{\theta}\) : Estimateur du maximum de vraisemblance (MLE) de \(\theta\),
 - \(\theta_0\) : Valeur de \(\theta\) sous \(H_0\).
 
-Par développement en série de Taylor autour de \(\hat{\theta}\) :
+Par développement en série de Taylor autour de \(\hat{\theta}\), sous les hypothèses de régularité permettant le développement :
 
 \[
-\mathcal{l}(\theta) = \mathcal{l}(\hat{\theta}) + \frac{\partial \mathcal{l}}{\partial \theta} (\theta - \hat{\theta}) + \frac{1}{2} (\theta - \hat{\theta})^\top \frac{\partial^2 \mathcal{l}}{\partial \theta^2} (\theta - \hat{\theta})
+\mathcal{l}(\theta) = \mathcal{l}(\hat{\theta}) + \frac{\partial \mathcal{l}}{\partial \theta} (\theta - \hat{\theta}) + \frac{1}{2} (\theta - \hat{\theta})^\top \frac{\partial^2 \mathcal{l}}{\partial \theta^2} (\theta - \hat{\theta}) + o(\|\theta - \hat{\theta}\|^2)
 \]
 
 Par définition du MLE, on sait que :
@@ -170,7 +168,7 @@ Par définition du MLE, on sait que :
 Cela implique que :
 
 \[
-2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = (\theta_0 - \hat{\theta})^\top \left(- \frac{\partial^2 \mathcal{l}}{\partial \theta^2}\right) (\theta_0 - \hat{\theta})
+2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = (\theta_0 - \hat{\theta})^\top \left(- \frac{\partial^2 \mathcal{l}}{\partial \theta^2} \big|_{\theta = \hat{\theta}}\right) (\theta_0 - \hat{\theta}) + o(\|\theta_0 - \hat{\theta}\|^2)
 \]
 
 Ou encore :
@@ -179,31 +177,31 @@ Ou encore :
 -2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = -2\ln\left(\frac{\mathcal{L}(\theta_0)}{\mathcal{L}(\hat{\theta})}\right) = -2\ln(LR)
 \]
 
-
-Par la loi des grands nombres :
+Par la loi des grands nombres, sous des hypothèses de régularité assurant la convergence uniforme :
 
 \[
-\frac{1}{n} \frac{\partial^2 \mathcal{L}}{\partial \theta^2} \to E\left[\frac{\partial^2 \mathcal{L}}{\partial \theta^2}\right]
+\frac{1}{n} \frac{\partial^2 \mathcal{l}}{\partial \theta^2} \to E\left[\frac{\partial^2 \mathcal{l}}{\partial \theta^2} \big|_{\theta_0} \right] = - I_{\theta_0}
 \]
 
-Alors, en utilisant l'information de Fisher \(I_{\theta_0}\) :
+où \( I_{\theta_0} \) est l'information de Fisher évaluée en \(\theta_0\). On en déduit que :
 
 \[
-\frac{\partial^2 \mathcal{L}}{\partial \theta^2} \approx -n I_{\theta_0}
+\frac{\partial^2 \mathcal{l}}{\partial \theta^2} \approx -n I_{\theta_0}
 \]
 
 Donc :
 
 \[
--2\ln(LR) = (\theta_0 - \hat{\theta})^\top n I_{\theta_0} (\theta_0 - \hat{\theta})
+-2\ln(LR) = (\theta_0 - \hat{\theta})^\top n I_{\theta_0} (\theta_0 - \hat{\theta}) + o(n\|\theta_0 - \hat{\theta}\|^2)
 \]
 
-
-Sous \(H_0\), on sait que :
+Sous \(H_0\), l'estimateur du maximum de vraisemblance satisfait asymptotiquement :
 
 \[
-\sqrt{n} I_{\theta_0}^{1/2} (\theta_0 - \hat{\theta}) \sim \mathcal{N}(0, I)
+\sqrt{n} I_{\theta_0}^{1/2} (\hat{\theta} - \theta_0) \sim \mathcal{N}(0, I_d)
 \]
+
+où \( I_d \) est la matrice identité de taille \( d \), avec \( d \) égal à la différence entre le nombre de paramètres estimés sous \(H_1\) et \(H_0\). Cela découle du théorème central limite appliqué à l'estimateur du maximum de vraisemblance.
 
 Cela implique que :
 
@@ -221,7 +219,6 @@ p\text{-valeur} = P(Y \geq -2\ln(LR)) \quad \text{avec } Y \sim \chi^2(d)
 \]
 
 
-\newpage
 
 ## III. Two-Sample Hypothesis Testing
 
@@ -391,7 +388,7 @@ generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_tran
 
 parametric_bootstrap <- function(trajectories, absorbing_state, dist_type, R) {
   
-  # On calcule les paramètres du MLE
+  # On calcule les paramètres du mle CHANGER LA FONCTION MLE
   mle_params <- estimate_mle(trajectories, absorbing_state, dist_type)
   
   # Calcul de la statistique de test T_l A MODIFIER CAR NE FAIS PAS LE RAPPORT DE VRAISEMBLANCE, SIMPLE CALCUL SOUS H0 ICI + Y A T-IL BESOIN DES MLE_PARAMS POUR T_l

@@ -1,0 +1,333 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+### 3.2 Asymptotic Distribution of \(-2 \ln(LR)\)
+
+The first approach to compute the \(p\)-value is based on the asymptotic distribution of the likelihood ratio test. Under general conditions, if \(H_0\) is true, and if \(n_1\) and \(n_2\) tend to infinity with \(n_1/(n_1 + n_2)\) tending to some constant \(a \in (0, 1)\), which means that \( n_1 \) and \( n_2 \) are of a relatively equivalent order of magnitude, then \(-2 \ln(LR)\) converges in distribution to a \(\chi^2(d)\) distribution, where \(d\) is the difference in the number of parameters estimated under \(H_1\) and \(H_0\).
+
+In order to compute the p-value of our test, let's show that:
+
+\[
+-2\ln(LR) \sim \chi^2(d)
+\]
+
+Let \(\mathcal{l}(\theta)\) be the log-likelihood function, with:
+
+- \(\hat{\theta}\): Maximum Likelihood Estimator (MLE) of \(\theta\),
+- \(\theta_0\): Value of \(\theta\) under \(H_0\).
+
+By performing a Taylor series expansion around \(\hat{\theta}\), under the regularity conditions that allow the expansion:
+
+\[
+\mathcal{l}(\theta) = \mathcal{l}(\hat{\theta}) + \frac{\partial \mathcal{l}}{\partial \theta} (\theta - \hat{\theta}) + \frac{1}{2} (\theta - \hat{\theta})^\top \frac{\partial^2 \mathcal{l}}{\partial \theta^2} (\theta - \hat{\theta}) + o(\|\theta - \hat{\theta}\|^2)
+\]
+
+By definition of the MLE, we know that:
+
+\[
+\frac{\partial \mathcal{l}}{\partial \theta} \big|_{\theta = \hat{\theta}} = 0
+\]
+
+This implies that:
+
+\[
+2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = (\theta_0 - \hat{\theta})^\top \left(- \frac{\partial^2 \mathcal{l}}{\partial \theta^2} \big|_{\theta = \hat{\theta}}\right) (\theta_0 - \hat{\theta}) + o(\|\theta_0 - \hat{\theta}\|^2)
+\]
+
+Or equivalently:
+
+\[
+-2[\mathcal{l}(\theta_0) - \mathcal{l}(\hat{\theta})] = -2\ln\left(\frac{\mathcal{L}(\theta_0)}{\mathcal{L}(\hat{\theta})}\right) = -2\ln(LR)
+\]
+
+By the law of large numbers, under the regularity conditions ensuring uniform convergence:
+
+\[
+\frac{1}{n} \frac{\partial^2 \mathcal{l}}{\partial \theta^2} \to E\left[\frac{\partial^2 \mathcal{l}}{\partial \theta^2} \big|_{\theta_0} \right] = - I_{\theta_0}
+\]
+
+where \( I_{\theta_0} \) is the Fisher information matrix evaluated at \(\theta_0\). We then deduce that:
+
+\[
+\frac{\partial^2 \mathcal{l}}{\partial \theta^2} \approx -n I_{\theta_0}
+\]
+
+Thus:
+
+\[
+-2\ln(LR) = (\theta_0 - \hat{\theta})^\top n I_{\theta_0} (\theta_0 - \hat{\theta}) + o(n\|\theta_0 - \hat{\theta}\|^2)
+\]
+
+Under \(H_0\), the maximum likelihood estimator asymptotically satisfies:
+
+\[
+\sqrt{n} I_{\theta_0}^{1/2} (\hat{\theta} - \theta_0) \sim \mathcal{N}(0, I_d)
+\]
+
+where \( I_d \) is the identity matrix of size \( d \), with \( d \) being the difference in the number of parameters estimated under \(H_1\) and \(H_0\). This follows from the central limit theorem applied to the maximum likelihood estimator.
+
+This implies that:
+
+\[
+(\theta_0 - \hat{\theta})^\top n I_{\theta_0} (\theta_0 - \hat{\theta}) \sim \chi^2(d)
+\]
+
+where \(d\) is the difference in the number of estimated parameters under \(H_1\) and \(H_0\).
+
+In our framework, the number of constrained parameters under \(H_0\) is:
+
+\[
+d = 
+\begin{cases}
+D^2 - D - 1 + |\omega| \times D(D - 1) & \text{without any absorbing state} \\
+D^2 - 2D + |\omega| \times (D - 1)^2 & \text{when the last state is absorbing}
+\end{cases}
+\]
+
+where \(|\omega| = 2\) for the Gamma and Weibull distributions, as these are two-parameter distributions. This choice is motivated by their flexibility in modeling non-exponential sojourn times and their suitability for the asymptotic properties of the likelihood ratio test. The exponential distribution is also included due to its simplicity in numerical optimization.
+
+Let's explain clearly why we have this value of d : 
+
+#### Without Absorbing States
+
+We define \( d \) as follows:
+
+\[
+d = D^2 - D - 1 + |w| \times D (D-1)
+\]
+
+where:
+- \( D^2 \) represents the number of possible combinations of transitioning from one state to another (i.e., the transition matrix of size \( D \times D \)).  
+- \( -D \) accounts for the probability of remaining in the same state (since we are computing the residence times, staying in the same state is impossible).  
+- \( -1 \) A EXPLIQUER  
+- \( |w| \times D (D-1) \) incorporates parameters related to sojourn times for all possible transitions between two different states (hence the term \( D-1 \)).  
+
+#### With an Absorbing State
+
+When an absorbing state is present, \( d \) is modified as:
+
+\[
+d = D^2 - 2D + |w| \times (D-1)^2
+\]
+
+where:
+- \( D^2 \) remains the same.  
+- \( -2D \) represents the removal from :  
+  * \( D \) transitions to the same state.  
+  * \( D \) transitions from the absorbing state.  
+- \( |w| \times (D-1)^2 \) adjusts for sojourn times but only for the first \( (D-1) \) states.  
+
+Finally, let \(T_l = \ln[LR(S_n)]\) be the logarithm of the likelihood ratio based on the pooled sample. The \(p\)-value of the test is defined as:
+
+\[
+p_{\text{asymp}} = \mathbb{P}[Y \geq -2T_l]
+\]
+
+where \(Y\) is a random variable with a \(\chi^2(d)\) distribution.
+
+
+### 3.3 Parametric bootstrap
+
+## VERSION 1 (Full texte)
+
+The parametric bootstrap is a statistical method used when the distribution of $\ln(LR)$ under the null hypothesis $H_0$ is unknown. Instead of relying on theoretical results, an empirical approximation can be obtained by generating simulated trajectories under $H_0$. The goal is to compare two Semi-Markov Processes (SMPs) and test whether they follow the same distribution. The procedure begins with estimating the parameter $\theta$ using the maximum likelihood estimation (MLE). Then, we compute the observed test statistic using real data, defined as $T_0 = \ln(LR(S_1))$. This statistic helps determine whether the observed data is more consistent with $H_0$ or $H_1$, where a high value of $T_0$ makes $H_0$ more credible, and a low value suggests that $H_0$ is less likely. To approximate the distribution of $T_0$ under $H_0$, we generate $R$ samples assuming $H_0$ is true, using the estimated parameters, and compute the test statistic for each simulated sample: $T^* = \ln(LR(S^*))$. This provides an empirical distribution of the test statistic under $H_0$. The next step is to compute the bootstrap p-value using the formula $p_{\text{boot}} = \frac{\#(T^* \leq T_0)}{R}$. If the p-value is smaller than a chosen threshold $\alpha$, we reject $H_0$, indicating that the trajectories of the two populations do not follow the same distribution. The interpretation of the p-value is straightforward: if $T_0$ is very large, many values of $T^*$ will be smaller, resulting in a high p-value, making $H_0$ more credible. Conversely, if $T_0$ is very small, only a few values of $T^*$ will be smaller, leading to a very small p-value, which suggests that $H_0$ is unlikely.
+
+## VERSION 2 (étagé)
+
+The parametric bootstrap is used when the distribution of $\ln(LR)$ under $H_0$ is unknown. In this case, an empirical approximation can be obtained by generating simulated trajectories under $H_0$.
+
+### Objective
+
+We aim to compare two **Semi-Markov Processes (SMPs)** and test whether they follow the same distribution.
+
+### Methodology
+
+1. Estimate the parameter $\theta$ using the **maximum likelihood estimation** (MLE).
+2. Compute the observed test statistic using real data:
+   $$
+   T_0 = \ln(LR(S_1))
+   $$
+   - This statistic helps determine whether the observed data is more consistent with $H_0$ or $H_1$. A high value of $T_0$ makes $H_0$ more credible, and vice versa.
+3. Generate $R$ samples assuming $H_0$ is true, using the estimated parameters.
+4. Compute the test statistic for each simulated sample:
+   $$
+   T^* = \ln(LR(S^*))
+   $$
+   - This provides an empirical distribution of the test statistic under $H_0$.
+5. Compute the **bootstrap p-value**:
+   $$
+   p_{\text{boot}} = \frac{\#(T^* \leq T_0)}{R}
+   $$
+   - If the p-value is smaller than a chosen threshold $\alpha$, we reject $H_0$.
+   - This means the trajectories of the two populations do not follow the same distribution.
+
+### Interpretation of the p-value
+
+- If $T_0$ is very large, many values of $T^*$ will be smaller, so the p-value will be high → $H_0$ is reliable
+- If $T_0$ is very small, only a few values of $T^*$ will be smaller, so the p-value will be very small → $H_0$ is unlikely.
+
+
+#### Code R 
+
+- PARAMETRIC BOOTSTRAP
+
+```{r}
+#On vient faire appel à la fonction calculant la log-vraisemblance d'un ensemble de trajectoires d'un SMP
+
+library(stats4)
+
+estimate_mle <- function(param, trajectories, absorbing_state, dist_type) {
+  
+  alpha <- param$alpha
+  P <- param$P
+  omega <- param$omega
+
+  mle <- mle(-log_likelihood, #On prend l'opposé du likelihood car dans cette librairie, la fonction mle minimise
+                 start = list(params),
+                 fixed = list(param, trajectories, absorbing_state, 
+                              dist_type),
+                 method = "L-BFGS-B")
+
+  return(mle)
+}
+
+
+#on vient générer un SMP suivant les paramètres du MLE sous H0 :
+
+generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_transitions = n1+n2) {
+  states <- numeric(max_transitions)
+  times <- numeric(max_transitions)
+  
+  states[1] <- sample(1:length(params$alpha), 1, prob = params$alpha) 
+  for (i in 1:(max_transitions - 1)) {
+    current_state <- states[i]
+    
+    if (current_state == absorbing_state) break #stop  si état absorbant
+    
+    states[i + 1] <- sample(1:nrow(params$P), 1, prob = params$P[current_state, ])
+    
+    if (dist_type == "gamma") {
+      times[i] <- rgamma(1, shape = params$omega[[current_state]][1], rate = params$omega[[current_state]][2])
+    } else if (dist_type == "weibull") {
+      times[i] <- rweibull(1, shape = params$omega[[current_state]][1], scale = params$omega[[current_state]][2])
+    }
+  }
+  
+  return(list(states = states[1:(i + 1)], times = times[1:i]))
+}
+
+
+#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
+
+
+parametric_bootstrap <- function(trajectories, absorbing_state, dist_type, R) {
+  
+  # On calcule les paramètres du mle CHANGER LA FONCTION MLE
+  mle_params <- estimate_mle(trajectories, absorbing_state, dist_type)
+  
+  # Calcul de la statistique de test T_l A MODIFIER CAR NE FAIS PAS LE RAPPORT DE VRAISEMBLANCE, SIMPLE CALCUL SOUS H0 ICI + Y A T-IL BESOIN DES MLE_PARAMS POUR T_l
+  T_l <- log_likelihood(mle_params, trajectories, absorbing_state, dist_type)
+  
+  # Compteur pour la p-value
+  count <- 0
+  for (r in 1:R) {
+    
+    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
+    bootstrap_trajectories <- lapply(1:length(trajectories), function(i) {
+      generate_smp_trajectory(mle_params, absorbing_state, dist_type)
+    })
+    
+    # Calcule la stat de test T* pour les trajectoires générées
+    T_star <- log_likelihood(mle_params, bootstrap_trajectories, absorbing_state, dist_type)
+    
+    # Itérations pour le calcul de la p-value
+    if (T_star <= T_l) {
+      count <- count + 1
+    }
+  }
+  
+  p_boot <- count / R
+  
+  return(p_boot) #renvoie direct la p-value
+}
+```
+
+### 3.4 Permutation Test
+
+## Permutation Test
+
+The permutation test is a method used when the distribution of the test statistic $\ln(LR)$ under the null hypothesis $H_0$ is unknown. Under $H_0$, we assume that the parameter $\Theta$ is the same for both populations. This means that there is no reason to keep the two groups separate. The permutation test works by randomly reordering the observed trajectories from both groups and comparing the observed test statistic \( T_l = \ln(LR(S_n)) \) to the values obtained from the permuted datasets.
+
+In theory, there are \( \binom{n_1 + n_2}{n_1} \) possible permutations, corresponding to the different ways of assigning \( n_1 \) trajectories among the total of \( n_1 + n_2 \). However, this number becomes very large, even for small values of \( n_1 \) and \( n_2 \). To make the computation feasible, we limit the number of permutations to \( R \) randomly chosen samples.
+
+### Methodology
+
+The permutation test follows these five main steps:
+
+1. **Grouping the trajectories**  
+   All \( n_1 + n_2 \) trajectories from both groups are combined into a single dataset. This step ensures that under \( H_0 \), any trajectory could belong to either group.
+
+2. **Computing the observed test statistic**  
+   The test statistic is calculated using the original data:
+   \[
+   T_l = \ln(LR(S_n)).
+   \]
+   This statistic helps determine whether the observed data supports \( H_0 \) or \( H_1 \).
+
+3. **Permuting the trajectories**  
+   Since \( H_0 \) assumes that the group labels are arbitrary, we randomly shuffle the trajectories without replacement. We generate \( R \) new datasets where the trajectories are reassigned randomly:
+   \[
+   S_{\pi_n} = (S_{\pi(1)}^1, \dots, S_{\pi(n_1)}^1, S_{\pi(n_1+1)}^2, \dots, S_{\pi(n_1+n_2)}^2).
+   \]
+   Each permutation represents a possible reassignment under \( H_0 \).
+
+4. **Computing the test statistic for each permutation**  
+   For each permuted dataset, we compute the test statistic:
+   \[
+   T^* = \ln(LR(S_{\pi_n})).
+   \]
+   This process is repeated \( R \) times, producing an empirical distribution of \( \ln(LR) \) under \( H_0 \).
+
+5. **Computing the permutation p-value**  
+   The p-value is calculated by comparing the observed statistic \( T_l \) to the test statistics obtained from the permutations:
+   \[
+   p_{\text{perm}} = \frac{\#(T^* \leq T_l)}{R}.
+   \]
+   Here, \( \# \) represents the number of times \( T^* \) is smaller than or equal to \( T_l \). A small p-value suggests that \( H_0 \) is unlikely.
+
+
+The interpretation of the p-value is straightforward. If \( T_l \) is very large, most \( T^* \) values will be smaller, leading to a large p-value, meaning that \( H_0 \) is reliable On the other hand, if \( T_l \) is very small, only a few \( T^* \) values will be smaller, resulting in a very small p-value, making \( H_0 \) less likely.
+
+The choice of \( R \) is important. Under $H_0$, the trajectories are interchangeable between the groups, meaning that the test statistic \( T_l \) is randomly positioned among the \( R+1 \) values (the observed statistic plus the \( R \) permuted values). The permutation p-value, denoted as \( p_{\text{permutation}} \), is defined as the proportion of \( T_r^* \) values that are "at least as extreme" as \( T_l \). If we reject \( H_0 \) when the empirical p-value is smaller than a chosen threshold \( \gamma \), it can be shown that:
+
+\[
+\mathbb{P}\bigl(p_{\text{permutation}} \leq \gamma\bigr) = \frac{\lfloor R\gamma\rfloor + 1}{R + 1}.
+\]
+
+This means that the test level is slightly different from \( \gamma \), but it becomes very close to \( \gamma \) as \( R \) increases. For this reason, we typically choose \( R = 1000 \).
+
+```{r}
+permutation_test <- function(trajectories, R) {
+  
+  n <- length(trajectories)  
+  
+  T_l <- log_likelihood_ratio(trajectories)
+  
+  count <- 0  
+
+  for (r in 1:R) {
+    
+    permuted_trajectories <- sample(trajectories)  
+    T_star <- log_likelihood(permuted_trajectories)
+    
+    if (T_star <= T_l) {
+      count <- count + 1
+    }
+  }
+
+  p_perm <- count / R
+
+  return(p_value = p_perm)
+}
