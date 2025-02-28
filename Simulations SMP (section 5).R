@@ -276,6 +276,7 @@ n <- n1+n2
 n_states <- 7  # Nombre d'états
 max_transitions <- 5
 dist_type <- "gamma"
+niveau_test <- 0.05
 R <- 1000
 
 # Génération de P et alpha
@@ -306,9 +307,10 @@ smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params
 likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
 
 
-# chi-2
+### chi-2
 
 n_repetitions <- 500
+
 # Initialisation du data frame pour stocker les p-valeurs
 p_values_df <- data.frame(p_value = numeric(n_repetitions))
 # Boucle pour répéter l'expérience 500 fois
@@ -324,6 +326,7 @@ for (i in 1:n_repetitions) {
   p_values_df$p_value[i] <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
 }
 
+# Graphique à la Fig. 4
 line_df <- data.frame(x = c(0, 1), y = c(0, 1))
 ggplot(p_values_df, aes(x = p_value)) +
   stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
@@ -334,12 +337,21 @@ ggplot(p_values_df, aes(x = p_value)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 
+# niveau empirique du test à la Table 1
+compute_empirical_level <- function(p_values_df, niveau_test) {
+  # Calcul du niveau empirique : proportion de p-values < niveau_test
+  empirical_level <- mean(p_values_df$p_value < niveau_test)*100
+  
+  return(empirical_level)
+}
+
+empirical_level <- compute_empirical_level(p_values_df, niveau_test)
 
 
-# parametric bootstrap
+### parametric bootstrap
 p_value_2 <- parametric_bootstrap(smp_trajectories1, smp_trajectories2, n1, n2, n_states, max_transitions, dist_type, R)
 
-# permutation
+### permutation
 p_value_3 <- permutation_test(smp_trajectories1, smp_trajectories2, n1, n2, R)
 
 # très (trop) long à tourner : à optimiser pour reproduire Fig. 4
