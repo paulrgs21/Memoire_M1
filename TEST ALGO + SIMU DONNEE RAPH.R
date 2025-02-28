@@ -1,4 +1,5 @@
 rm(list = ls())
+library(fitdistrplus)
 # Création manuelle des trajectoires pour 4 individus
 # Trois état : 1=chomage, 2=cadre, 3=ouvrier
 # Individu 1
@@ -185,7 +186,7 @@ compute_LR <- function(trajectories1, trajectories2, absorbing_state, dist_type,
 }
 LR <-compute_LR(trajectories1, trajectories2, 0, dist_type, n_states)
 print(LR)
-
+LR_val <- LR$log_LR
 
 print(estimate_SMP_params(trajectories2,0,dist_type,n_states))
 
@@ -195,7 +196,133 @@ print(estimate_SMP_params(trajectories, 0, dist_type, n_states))
 
 
 
+# Bien maintenant on va test les p_value avec les 2 trajectoires très diffèrentes pour vérifié que les résultats sont cohérent
 
+### 1) Chi-2 
+#Ca demande un n grand donc c'est normal si le résultat ne fonctionne pas je pense
+compute_asymptotic_pvalue <- function(LR_val, n_states, dist_type) {
+  # Calcul des degrés de liberté
+  k <- ifelse(dist_type %in% c("gamma", "weibull"), 2, 1) #calcul du nombre de paramètres 
+  #if (is.null(absorbing_state)) { #le degré de liberté depend de la présence ou non d'un état absorbant.
+  d <- n_states^2 - n_states - 1 + k*n_states # car hyp w_lj=w_l
+  #} else { pour l'instant, pas d'état absorbant
+  #d <- n_states^2 - 2*n_states +k*(n_states - 1)
+  #}
+  
+  # Calcul de la p-value
+  test_stat <- -2*LR_val[[2]]
+  pval <- 1 - pchisq(test_stat, df = d)
+  return(pval)
+}
+
+print(compute_asymptotic_pvalue(LR, n_states, dist_type))
+#On obtient une p_valeur très très petite donc rejet à priori de H0 good
+
+
+
+### 3) Permutation ----
+permutation_test <- function(trajectories1, trajectories2,absorbing_state, dist_type, n_states, n1, n2, R) {
+  
+  T_l <- compute_LR(trajectories1, trajectories2,absorbing_state, dist_type, n_states)
+  
+  count <- 0  
+  
+  for (r in 1:R) {
+    
+    permutation <- sample(1:(n1+n2), n1+n2, replace = FALSE) # Permutation aléatoire
+    
+    perm_traj1 <- c(trajectories1, trajectories2)[permutation[1:n1]]
+    perm_traj2 <- c(trajectories1, trajectories2)[permutation[(n1+1):(n1+n2)]]
+    n_states <- n_states
+    T_star <- compute_LR(perm_traj1, perm_traj2,absorbing_state, dist_type, n_states)
+    
+    if (T_star[[2]] <= T_l[[2]]) {
+      count <- count + 1
+    }
+  }
+  
+  p_perm <- count / R
+  
+  return(p_perm)
+}
+print(permutation_test(trajectories1,trajectories2,0,dist_type,n_states,4,54,1000))
+
+
+### 2) Parametric bootstrap ----
+# on vient générer un échantillon de trajectoires suivant les paramètres du MLE sous H0 :
+simulate_SMP_bootstrap <- function(n, n_states, params, dist_type, max_transitions) {
+  alpha <- params$alpha
+  P <- params$P
+  dist_params <- params$dist_params
+  
+  trajectories <- vector("list", n)
+  
+  for (i in 1:n) {
+    states <- numeric(max_transitions)
+    times <- numeric(max_transitions)
+    states[1] <- sample(1:n_states, 1, prob = alpha) # État initial
+    
+    for (t in 1:(max_transitions - 1)) {
+      states[t + 1] <- sample(1:n_states, 1, prob = P[states[t], ]) # Transition
+      
+      # Tirage du temps de séjour selon la distribution spécifiée
+      if (dist_type == "gamma") {
+        times[t] <- rgamma(1, shape=1,rate=1)
+      } else if (dist_type == "weibull") {
+        times[t] <- rweibull(1, shape = dist_params[[states[t]]][1],
+                             scale = dist_params[[states[t]]][2])
+      } else {
+        times[t] <- rexp(1, rate = dist_params[[states[t]]][1])
+      }
+      
+      
+      # Arrêt si état absorbant (ex : dernier état)
+      #if (states[t + 1] == n_states) {
+      #  states <- states[1:(t + 1)]
+      #  times <- times[1:t]
+      #  break
+      #}
+    }
+    trajectories[[i]] <- list(states = states, times = times)
+  }
+  return(trajectories)
+}
+
+
+
+#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
+
+parametric_bootstrap <- function(trajectories1, trajectories2, n1, n2, n_states, max_transitions, dist_type, R,absorbing_state) {
+  
+  # On calcule les paramètres du MLE (pour générer les échantillons)
+  mle_params <- estimate_SMP_params(c(trajectories1, trajectories2), absorbing_state, dist_type, n_states)
+  
+  # Calcul de la statistique de test T_l
+  T_l <- compute_LR(trajectories1, trajectories2, absorbing_state, dist_type, n_states)
+  
+  # Compteur pour la p-value
+  count <- 0
+  for (r in 1:R) {
+    
+    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
+    bootstrap_trajectories1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
+    bootstrap_trajectories2 <- simulate_SMP_bootstrap(n2, n_states, mle_params, dist_type, max_transitions)
+    
+    # Calcule la stat de test T* pour les trajectoires générées
+    T_star <- compute_LR(bootstrap_trajectories1, bootstrap_trajectories2, absorbing_state, dist_type, n_states)
+    
+    # Itérations pour le calcul de la p-value
+    if (T_star[[2]] <= T_l[[2]]) {
+      count <- count + 1
+    }
+  }
+  
+  p_boot <- count / R
+  
+  return(p_boot)
+}
+
+print(parametric_bootstrap(trajectories1,trajectories2,4,54,3,3,dist_type,1000,0))
 
 
 
