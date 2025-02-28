@@ -5,6 +5,7 @@
 # hypothèse w_lj = w_l
 
 library(MASS)
+library(ggplot2)
 
 ### Simulation de trajectoires SMP ----
 simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_transitions) {
@@ -269,11 +270,11 @@ permutation_test <- function(trajectories1, trajectories2, n1, n2, R) {
 
 
 ### Exemple d'utilisation ----
-n1 <- 100  # Nombre de trajectoires simulées
-n2 <- 100
+n1 <- 60  # Nombre de trajectoires simulées
+n2 <- 60
 n <- n1+n2
-n_states <- 4  # Nombre d'états
-max_transitions <- 10
+n_states <- 7  # Nombre d'états
+max_transitions <- 5
 dist_type <- "gamma"
 R <- 1000
 
@@ -289,18 +290,13 @@ alpha <- alpha/sum(alpha)
 # Paramètres Gamma/Weibull/Exp pour chaque état (on considère l'hyp w_lj = w_l)
 # pris aléatoirement pour le moment
 if (dist_type == "gamma") {
-  dist_params <- matrix(c(1.75, 2.95,
-                          3.86, 2.19,
-                          4.33, 4.26,
-                          4.47, 3.61), ncol = 2, byrow = TRUE)
+  dist_params <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
 } else if (dist_type == "weibull") {
-  dist_params <- matrix(c(1.30, 3.19,
-                          1.80, 3.90,
-                          2.05, 4.85,
-                          4.04, 1.62), ncol = 2, byrow = TRUE)
+  dist_params <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
 } else {
-  dist_params <- matrix(c(1.11, 0.83, 1.34, 1.86), ncol = 1)
+  dist_params <- matrix(round(runif(n_states, min = 0.5, max = 2), 2), ncol = 1)
 }
+
 
 # Echantillon 1 (100 trajectoires)
 smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
@@ -309,8 +305,36 @@ smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params
 
 likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
 
+
 # chi-2
-p_value_1 <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+
+n_repetitions <- 500
+# Initialisation du data frame pour stocker les p-valeurs
+p_values_df <- data.frame(p_value = numeric(n_repetitions))
+# Boucle pour répéter l'expérience 500 fois
+for (i in 1:n_repetitions) {
+  # Génération des échantillons sous H0
+  smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  
+  # Calcul du ratio de vraisemblance
+  likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+  
+  # Calcul de la p-valeur
+  p_values_df$p_value[i] <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+}
+
+line_df <- data.frame(x = c(0, 1), y = c(0, 1))
+ggplot(p_values_df, aes(x = p_value)) +
+  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
+  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1) +  # Droite y = x
+  labs(title = "Fonction de répartition empirique des p-valeurs",
+       x = "P-valeurs",
+       y = "F(x)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+
 
 # parametric bootstrap
 p_value_2 <- parametric_bootstrap(smp_trajectories1, smp_trajectories2, n1, n2, n_states, max_transitions, dist_type, R)
