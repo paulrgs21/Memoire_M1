@@ -727,35 +727,77 @@ summary(nombre_transitions)
 
 
 
+#### Fonction de test global ----
+test <- function(base1, base2, n_states, dist_type){
+  
+  n1 <- nrow(base1)
+  n2 <- nrow(base2)
+  n <- n1+n2
+  
+  trajectoires1 <- list()
+  for(i in 1:nrow(base1)) {
+    id <- base1$IDENT[i]
+    trajectoires1[[as.character(id)]] <- formatage_smp(base1[i,])
+  }
+  
+  trajectoires2 <- list()
+  for(i in 1:nrow(base2)) {
+    id <- base2$IDENT[i]
+    trajectoires2[[as.character(id)]] <- formatage_smp(base2[i,])
+  }
+  
+  likelihood_ratio <- compute_LR(trajectoires1, trajectoires2, n_states, dist_type)
+  
+  # p-valeur du Chi-2
+  pv_chi_2 <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+  
+  return(list(pv_chi_2 = pv_chi_2, likelihood_ratio = likelihood_ratio))
+}
+
+
+
 #### 1er test H vs F ----
 # Leurs trajectoires professionnelles suivent-ils la même loi SMP ?
+
+# paramètres
+n_states <- 9
+dist_type <- "weibull"
+
+# Création des sous-bases
 hommes <- data[data$Q1==1,]
 femmes <- data[data$Q1==2,]
 
-trajectoires_h <- list()
-for(i in 1:nrow(hommes)) {
-  id <- hommes$IDENT[i]
-  trajectoires_h[[as.character(id)]] <- formatage_smp(hommes[i,])
-}
+test(hommes, femmes, n_states, dist_type)
+# LR de 0, p value de 0, on rejette tout le temps H_0
 
-trajectoires_f <- list()
-for(i in 1:nrow(femmes)) {
-  id <- femmes$IDENT[i]
-  trajectoires_f[[as.character(id)]] <- formatage_smp(femmes[i,])
-}
+test(hommes, hommes, n_states, dist_type)
+test(femmes, femmes, n_states, dist_type)
+# LR de 1, p value de 1, on ne rejette JAMAIS H_0 (test trivial)
 
-# paramètres
-n1 <- nrow(hommes)
-n2 <- nrow(femmes)
-n <- n1+n2
-n_states <- 9
-dist_type <- "weibull"
-niveau_test <- 0.05
-R <- 1000
-n_repetitions <- 500 # pour graphique
-max_transitions <- 5 # à estimer (pour bootstrap ou graphique à la Fig.4)
 
-likelihood_ratio <- compute_LR(trajectoires_h, trajectoires_f, n_states, dist_type)
 
-# p-valeur du Chi-2
-compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+
+#### 2ème test ----
+# tentative de test significatif :
+# test entre individus similaires, n'étant différents que par le fait d'avoir
+# eu une mobilité de commune durant le parcours scolaire ou non (Q31A)
+
+base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==1,]
+base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==2,]
+test(base_1, base_2, n_states, dist_type)
+# ici p-valeur de 6.5e-5 donc on est sous H1
+
+
+base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>4&data$Q31A==1,]
+base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>4&data$Q31A==2,]
+test(base_1, base_2, n_states, dist_type)
+# p-valeur de 0.46 nous indiquant qu'on est très probablement sous H_0
+# on a juste rajouté nivdip7>4 pour les 2, qui conditionne donc bcp le résultat
+
+base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>2&data$Q31A==1,]
+base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>2&data$Q31A==2,]
+test(base_1, base_2, n_states, dist_type)
+# on essaye avec "nivdip7>2 ou 3" pour voir si on reste sous H_0 ou si l'on repasse sous H1
+# avec ">3", tjrs sous H_0 (pv de 0.18), mais avec ">2", on repasse sous H_1 (pv de 0.01)
+
+
