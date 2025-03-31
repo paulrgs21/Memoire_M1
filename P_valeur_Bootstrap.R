@@ -271,6 +271,8 @@ test_boostrap <- function(base1, base2, n_states, dist_type){
   return(likelihood_ratio = likelihood_ratio)
 }
 
+library(skimr)
+skim(data)
 #### 2ème test ----
 # tentative de test significatif :
 # test entre individus similaires, n'étant différents que par le fait d'avoir
