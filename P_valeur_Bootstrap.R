@@ -2,7 +2,7 @@ rm(list=ls())
 library(MASS)
 library(ggplot2)
 
-### Simulation de trajectoires SMP ----
+### Simulation de trajectoires SMP 
 simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_transitions) {
   trajectories <- vector("list", n)
   
