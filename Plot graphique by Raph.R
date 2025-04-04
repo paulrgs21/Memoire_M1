@@ -4,7 +4,7 @@ library(MASS)
 library(ggplot2)
 library(vcd)
 library(dplyr)
-#### Data management ----
+#### Data management 
 data <- read.table("C:/Users/rapha/Desktop/Mémoire/donnees.txt", 
                    header = TRUE,      # La première ligne contient les noms de colonnes
                    sep = "\t",         # Délimiteur tabulation
