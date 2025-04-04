@@ -17,35 +17,6 @@ cl <- makeCluster(nb_cores)
 registerDoParallel(cl)
 
 
-### Simulation de trajectoires SMP ----
-simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_transitions) {
-  trajectories <- vector("list", n)
-  
-  for (i in 1:n) {
-    states <- numeric(max_transitions)
-    times <- numeric(max_transitions)
-    states[1] <- sample(1:n_states, 1, prob = alpha) # État initial
-    
-    for (t in 1:(max_transitions - 1)) {
-      states[t + 1] <- sample(1:n_states, 1, prob = P[states[t], ]) # Transition
-      
-      # Tirage du temps de séjour selon la distribution spécifiée
-      if (dist_type == "gamma") {
-        times[t] <- rgamma(1, shape = dist_params[states[t], 1],
-                           rate = dist_params[states[t], 2])
-      } else if (dist_type == "weibull") {
-        times[t] <- rweibull(1, shape = dist_params[states[t], 1],
-                             scale = dist_params[states[t], 2])
-      } else {
-        times[t] <- rexp(1, rate = dist_params[states[t], 1])
-      }
-      
-    }
-    trajectories[[i]] <- list(states = states, times = times)
-  }
-  return(trajectories)
-}
-
 
 
 ### Estimation theta ----
