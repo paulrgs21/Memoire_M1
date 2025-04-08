@@ -17,24 +17,25 @@ cl <- makeCluster(nb_cores)
 registerDoParallel(cl)
 
 
-
-
 ### Estimation theta ----
 estimate_SMP_params <- function(trajectories, n_states, dist_type) {
-  # Estimation alpha (fréquences initiales)
+  # Estimation fréquences initiales
   initial_states <- sapply(trajectories, function(x) x$states[1])
   alpha <- table(factor(initial_states, levels=1:n_states))
   alpha <- alpha/sum(alpha)
   
-  # Estimation P (matrice de transitions)
-  transition_counts <- matrix(0, n_states, n_states)
-  for (traj in trajectories) {
-    states <- traj$states
-    for (i in 1:(length(states)-1)) {
-      transition_counts[states[i], states[i+1]] <- transition_counts[states[i], states[i+1]] + 1
-    }
-  }
-  P <- transition_counts/rowSums(transition_counts)
+  # Estimation matrice de transitions
+  #on extrait sous forme de vecteur chaque changement de trajectoire
+  all_from <- unlist(lapply(trajectories, function(traj) traj$states[-length(traj$states)]))
+  all_to   <- unlist(lapply(trajectories, function(traj) traj$states[-1]))
+  
+  M_from <- diag(n_states)[all_from, , drop = FALSE]
+  M_to   <- diag(n_states)[all_to, , drop = FALSE]  
+  
+  #on utilise le produit matriciel
+  transition_counts <- t(M_from) %*% M_to             
+  
+  P <- transition_counts / rowSums(transition_counts)
   
   # Estimation ω (MLE par état)
   if(dist_type == "gamma" || dist_type == "weibull") {
@@ -77,32 +78,30 @@ log_likelihood <- function(params, trajectories, dist_type) {
     states <- traj$states
     times <- traj$times
     
-    # Terme initial alpha_j1
     logL <- logL + log(max(alpha[states[1]], epsilon))
     
-    m <- length(states) - 1
+    from <- states[-length(states)]
+    to   <- states[-1]
+    durations <- times[-length(times)]
     
-    for (i in 1:m) {
-      from <- states[i]
-      to <- states[i+1]
-      
-      # Terme de transition P_ij
-      logL <- logL + log(max(P[from, to], epsilon))
-      
-      # Terme de durée
+    log_transi <- log(pmax(P[cbind(from, to)], epsilon))
+    log_transi[!is.finite(log_transi)] <- log(epsilon)
+    logL <- logL + sum(log_transi)
+    
+    valid <- !is.na(from) & from >= 1 & from <= nrow(dist_params)
+    
+    if (any(valid)) {
       if (dist_type == "gamma") {
-        logL <- logL + dgamma(times[i], shape = dist_params[from, 1], rate = dist_params[from, 2], log = TRUE)
+        logL <- logL + sum(pmax(log(dgamma(durations, shape = dist_params[from, 1], rate = dist_params[from, 2])), log(epsilon)))
       } else if (dist_type == "weibull") {
-        logL <- logL + dweibull(times[i], shape = dist_params[from, 1], scale = dist_params[from, 2], log = TRUE)
+        logL <- logL + sum(pmax(log(dweibull(durations, shape = dist_params[from, 1], scale = dist_params[from, 2])), log(epsilon)))
       } else if (dist_type == "exponential") {
-        logL <- logL + dexp(times[i], rate = dist_params[from, 1], log = TRUE)
+        logL <- logL + sum(pmax(log(dexp(durations, rate = dist_params[from, 1])), log(epsilon)))
       }
     }
   }
-  
   return(logL)
 }
-
 
 
 ### Ratio de vraisemblance ----
@@ -118,7 +117,9 @@ compute_LR <- function(trajectories1, trajectories2, n_states, dist_type) {
   logL_H0 <- log_likelihood(mle_H0, c(trajectories1, trajectories2), dist_type)
   
   logL_H1 <- log_likelihood(mle_H1_t1, trajectories1, dist_type) + log_likelihood(mle_H1_t2, trajectories2, dist_type)
-  
+  if (!is.finite(logL_H0) || !is.finite(logL_H1)) { #Evite message d'erreur pour trop de permutations
+    return(list(LR = NA, log_LR = NA))
+  }
   LR <- exp(logL_H0 - logL_H1)
   return(list(LR = LR, log_LR = log(LR)))
 }
@@ -195,17 +196,18 @@ permutation_test <- function(base1, base2, n1, n2, R, n_states, dist_type) {
 }
 
 
-R <- 5
+R <- 100
 n_states <- 9
 dist_type <- "weibull"
 
 hommes <- data[data$Q1==1,]
 femmes <- data[data$Q1==2,]
-base1 <- hommes
-base2 <- femmes
+base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==1,]
+base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==2,]
 n1 <- nrow(base1)
 n2 <- nrow(base2)
 
-p_value <- permutation_test(base1, base2, n1, n2, R, n_states, dist_type)
+p_value <- permutation_test(hommes, hommes, n1, n2, R, n_states, dist_type)
 stopCluster(cl)
 print(p_value)
+
