@@ -90,13 +90,24 @@ log_likelihood <- function(params, trajectories, dist_type) {
     
     valid <- !is.na(from) & from >= 1 & from <= nrow(dist_params)
     
-    if (any(valid)) {
+    if (any(valid)) { #plein de sécurités pour que le code puisse tourner
       if (dist_type == "gamma") {
-        logL <- logL + sum(pmax(log(dgamma(durations, shape = dist_params[from, 1], rate = dist_params[from, 2])), log(epsilon)))
+        dens <- dgamma(durations, shape = dist_params[from, 1], rate = dist_params[from, 2])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
+        
       } else if (dist_type == "weibull") {
-        logL <- logL + sum(pmax(log(dweibull(durations, shape = dist_params[from, 1], scale = dist_params[from, 2])), log(epsilon)))
+        dens <- dweibull(durations, shape = dist_params[from, 1], scale = dist_params[from, 2])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
+        
       } else if (dist_type == "exponential") {
-        logL <- logL + sum(pmax(log(dexp(durations, rate = dist_params[from, 1])), log(epsilon)))
+        dens <- dexp(durations, rate = dist_params[from, 1])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
       }
     }
   }
@@ -183,7 +194,9 @@ permutation_test <- function(base1, base2, n1, n2, R, n_states, dist_type) {
     
     T_star <- compute_LR(perm_traj1, perm_traj2, n_states, dist_type)
     
-    if (T_star[[2]] <= T_l[[2]]) {
+    if (!is.na(T_star$log_LR) && is.finite(T_star$log_LR) &&
+        !is.na(T_l$log_LR) && is.finite(T_l$log_LR) &&
+        T_star$log_LR <= T_l$log_LR) {
       return(1)
     } else {
       return(0)
@@ -196,7 +209,7 @@ permutation_test <- function(base1, base2, n1, n2, R, n_states, dist_type) {
 }
 
 
-R <- 100
+R <- 300
 n_states <- 9
 dist_type <- "weibull"
 
@@ -207,7 +220,7 @@ base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3
 n1 <- nrow(base1)
 n2 <- nrow(base2)
 
-p_value <- permutation_test(hommes, hommes, n1, n2, R, n_states, dist_type)
+p_value <- permutation_test(base_1, base_2, n1, n2, R, n_states, dist_type)
 stopCluster(cl)
 print(p_value)
 
