@@ -34,20 +34,23 @@ simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_tran
 
 ### Estimation theta ----
 estimate_SMP_params <- function(trajectories, n_states, dist_type) {
-  # Estimation α (fréquences initiales)
+  # Estimation fréquences initiales
   initial_states <- sapply(trajectories, function(x) x$states[1])
   alpha <- table(factor(initial_states, levels=1:n_states))
   alpha <- alpha/sum(alpha)
   
-  # Estimation P (matrice de transitions)
-  transition_counts <- matrix(0, n_states, n_states)
-  for (traj in trajectories) {
-    states <- traj$states
-    for (i in 1:(length(states)-1)) {
-      transition_counts[states[i], states[i+1]] <- transition_counts[states[i], states[i+1]] + 1
-    }
-  }
-  P <- transition_counts/rowSums(transition_counts)
+  # Estimation matrice de transitions
+  #on extrait sous forme de vecteur chaque changement de trajectoire
+  all_from <- unlist(lapply(trajectories, function(traj) traj$states[-length(traj$states)]))
+  all_to   <- unlist(lapply(trajectories, function(traj) traj$states[-1]))
+  
+  M_from <- diag(n_states)[all_from, , drop = FALSE]
+  M_to   <- diag(n_states)[all_to, , drop = FALSE]  
+  
+  #on utilise le produit matriciel
+  transition_counts <- t(M_from) %*% M_to             
+  
+  P <- transition_counts / rowSums(transition_counts)
   
   # Estimation ω (MLE par état)
   if(dist_type == "gamma" || dist_type == "weibull") {
@@ -62,16 +65,17 @@ estimate_SMP_params <- function(trajectories, n_states, dist_type) {
       if(length(idx) > 0) return(traj$times[idx]) 
       else return(NULL)
     }))
-    
-    if(dist_type == "gamma") {
-      fit <- fitdistr(durations, "gamma", start=list(shape=1, rate=1))
-      dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["rate"])
-    } else if(dist_type == "weibull") {
-      fit <- fitdistr(durations, "weibull", start=list(shape=1, scale=1))
-      dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["scale"])
-    } else {
-      fit <- fitdistr(durations, "exponential", start=list(shape=1))
-      dist_params[state, ] <- fit$estimate["rate"]
+    if (length(durations) > 1) {
+      if(dist_type == "gamma") {
+        fit <- fitdistr(durations, "gamma", start=list(shape=1, rate=1))
+        dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["rate"])
+      } else if(dist_type == "weibull") {
+        fit <- fitdistr(durations, "weibull", start=list(shape=1, scale=1))
+        dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["scale"])
+      } else {
+        fit <- fitdistr(durations, "exponential", start=list(rate=1))
+        dist_params[state, ] <- fit$estimate["rate"]
+      }
     }
   }
   return(list(alpha=alpha, P=P, dist_params=dist_params))
@@ -93,29 +97,39 @@ log_likelihood <- function(params, trajectories, dist_type) {
     states <- traj$states
     times <- traj$times
     
-    # Terme initial alpha_j1
     logL <- logL + log(max(alpha[states[1]], epsilon))
     
-    m <- length(states) - 1
+    from <- states[-length(states)]
+    to   <- states[-1]
+    durations <- times[-length(times)]
     
-    for (i in 1:m) {
-      from <- states[i]
-      to <- states[i+1]
-      
-      # Terme de transition P_ij
-      logL <- logL + log(max(P[from, to], epsilon))
-      
-      # Terme de durée
+    log_transi <- log(pmax(P[cbind(from, to)], epsilon))
+    log_transi[!is.finite(log_transi)] <- log(epsilon)
+    logL <- logL + sum(log_transi)
+    
+    valid <- !is.na(from) & from >= 1 & from <= nrow(dist_params)
+    
+    if (any(valid)) { #plein de sécurités pour que le code puisse tourner
       if (dist_type == "gamma") {
-        logL <- logL + dgamma(times[i], shape = dist_params[from, 1], rate = dist_params[from, 2], log = TRUE)
+        dens <- dgamma(durations, shape = dist_params[from, 1], rate = dist_params[from, 2])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
+        
       } else if (dist_type == "weibull") {
-        logL <- logL + dweibull(times[i], shape = dist_params[from, 1], scale = dist_params[from, 2], log = TRUE)
+        dens <- dweibull(durations, shape = dist_params[from, 1], scale = dist_params[from, 2])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
+        
       } else if (dist_type == "exponential") {
-        logL <- logL + dexp(times[i], rate = dist_params[from, 1], log = TRUE)
+        dens <- dexp(durations, rate = dist_params[from, 1])
+        log_dens <- log(pmax(dens, epsilon))
+        log_dens[!is.finite(log_dens)] <- log(epsilon)
+        logL <- logL + sum(log_dens)
       }
     }
   }
-  
   return(logL)
 }
 
@@ -184,9 +198,13 @@ parametric_bootstrap <- function(trajectories1, trajectories2, n1, n2, n_states,
   # Calcul de la statistique de test T_l
   T_l <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
   
+  # Set up cluster
+  cl <- makeCluster(n_cores)
+  registerDoParallel(cl)
+  
   # Compteur pour la p-value
-  count <- 0
-  for (r in 1:R) {
+  # Exécution parallèle
+  results <- foreach(r = 1:R, .combine = '+', .packages = c("simulate_SMP_bootstrap", "compute_LR")) %dopar% {
     
     # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
     bootstrap_trajectories1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
@@ -195,12 +213,10 @@ parametric_bootstrap <- function(trajectories1, trajectories2, n1, n2, n_states,
     # Calcule la stat de test T* pour les trajectoires générées
     T_star <- compute_LR(bootstrap_trajectories1, bootstrap_trajectories2, n_states, dist_type)
     
-    # Itérations pour le calcul de la p-value
-    if (T_star[[2]] <= T_l[[2]]) {
-      count <- count + 1
-    }
+    # Retourne 1 si T* <= T_l, 0 sinon
+    as.integer(T_star[[2]] <= T_l[[2]])
   }
-  
+
   p_boot <- count / R
   
   return(p_boot)
