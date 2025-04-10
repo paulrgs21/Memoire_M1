@@ -1,6 +1,8 @@
 rm(list=ls())
 library(MASS)
 library(ggplot2)
+library(foreach)
+library(doParallel)
 
 ### Simulation de trajectoires SMP 
 simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_transitions) {
@@ -190,35 +192,48 @@ simulate_SMP_bootstrap <- function(n, n_states, params, dist_type, max_transitio
 
 #On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
 
-parametric_bootstrap <- function(trajectories1, trajectories2, n1, n2, n_states, max_transitions, dist_type, R) {
+parametric_bootstrap <- function(trajectories1, trajectories2, 
+                                 n1, n2, n_states, max_transitions, 
+                                 dist_type, R, n_cores = parallel::detectCores() - 1) {
   
-  # On calcule les paramètres du MLE (pour générer les échantillons)
+  # 📌 Calcul des paramètres du MLE sous H0
   mle_params <- estimate_SMP_params(c(trajectories1, trajectories2), n_states, dist_type)
   
-  # Calcul de la statistique de test T_l
+  # 📌 Statistique observée
   T_l <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
   
-  # Set up cluster
-  cl <- makeCluster(n_cores)
-  registerDoParallel(cl)
+  # 📌 Lancement du cluster
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
   
-  # Compteur pour la p-value
-  # Exécution parallèle
-  results <- foreach(r = 1:R, .combine = '+', .packages = c("simulate_SMP_bootstrap", "compute_LR")) %dopar% {
-    
-    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
-    bootstrap_trajectories1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
-    bootstrap_trajectories2 <- simulate_SMP_bootstrap(n2, n_states, mle_params, dist_type, max_transitions)
-    
-    # Calcule la stat de test T* pour les trajectoires générées
-    T_star <- compute_LR(bootstrap_trajectories1, bootstrap_trajectories2, n_states, dist_type)
-    
-    # Retourne 1 si T* <= T_l, 0 sinon
-    as.integer(T_star[[2]] <= T_l[[2]])
-  }
-
-  p_boot <- count / R
+  # Export des fonctions + objets nécessaires dans les workers
+  parallel::clusterExport(cl, varlist = c(
+    "simulate_SMP_bootstrap", 
+    "estimate_SMP_params", 
+    "compute_LR",
+    "log_likelihood",
+    "n1", "n2", "n_states", "max_transitions", "dist_type", "mle_params", "T_l"
+  ), envir = environment())  # important d'inclure l'environnement
   
+  # Sécurité : si une erreur arrive dans le foreach, on stoppe le cluster proprement
+  results <- tryCatch({
+    
+    foreach::foreach(r = 1:R, .combine = '+', .packages = c("stats","MASS")) %dopar% {
+      bootstrap_trajectories1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
+      bootstrap_trajectories2 <- simulate_SMP_bootstrap(n2, n_states, mle_params, dist_type, max_transitions)
+      
+      T_star <- compute_LR(bootstrap_trajectories1, bootstrap_trajectories2, n_states, dist_type)
+      
+      as.integer(T_star[[2]] <= T_l[[2]])
+    }
+    
+  }, finally = {
+    # Stoppe le cluster même s’il y a une erreur
+    parallel::stopCluster(cl)
+  })
+  
+  # 🔢 Calcul final de la p-valeur
+  p_boot <- results / R
   return(p_boot)
 }
 
