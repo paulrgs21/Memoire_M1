@@ -3,14 +3,14 @@ title: "Master's Thesis"
 author: "Paul Rongieras, Valentin Rivet, Raphaël Capranico"
 date: "2025-01-20"
 output:
-  html_document:
-    toc: true
-    toc_depth: '3'
-    df_print: paged
   pdf_document:
     toc: true
     toc_depth: 3
     latex_engine: xelatex
+  html_document:
+    toc: true
+    toc_depth: '3'
+    df_print: paged
 subtitle: >
   C. Frascola et al., 2022.
   Based on the article: "Two-Sample Tests for Semi-Markov Processes with 
@@ -333,91 +333,6 @@ Nous cherchons à comparer deux SMP (Semi Markov Process) et à tester s'ils sui
 - Si $T_0$ est très petit, il y aura peu de $T^*$ plus petits donc la p valeur sera très petite → $H_0$ est suspect
 
 
-#### Code R 
-
-- PARAMETRIC BOOTSTRAP
-
-```{r}
-#On vient faire appel à la fonction calculant la log-vraisemblance d'un ensemble de trajectoires d'un SMP
-
-library(stats4)
-
-estimate_mle <- function(param, trajectories, absorbing_state, dist_type) {
-  
-  alpha <- param$alpha
-  P <- param$P
-  omega <- param$omega
-
-  mle <- mle(-log_likelihood, #On prend l'opposé du likelihood car dans cette librairie, la fonction mle minimise
-                 start = list(params),
-                 fixed = list(param, trajectories, absorbing_state, 
-                              dist_type),
-                 method = "L-BFGS-B")
-
-  return(mle)
-}
-
-
-#on vient générer un SMP suivant les paramètres du MLE sous H0 :
-
-generate_smp_trajectory <- function(params, absorbing_state, dist_type, max_transitions = n1+n2) {
-  states <- numeric(max_transitions)
-  times <- numeric(max_transitions)
-  
-  states[1] <- sample(1:length(params$alpha), 1, prob = params$alpha) 
-  for (i in 1:(max_transitions - 1)) {
-    current_state <- states[i]
-    
-    if (current_state == absorbing_state) break #stop  si état absorbant
-    
-    states[i + 1] <- sample(1:nrow(params$P), 1, prob = params$P[current_state, ])
-    
-    if (dist_type == "gamma") {
-      times[i] <- rgamma(1, shape = params$omega[[current_state]][1], rate = params$omega[[current_state]][2])
-    } else if (dist_type == "weibull") {
-      times[i] <- rweibull(1, shape = params$omega[[current_state]][1], scale = params$omega[[current_state]][2])
-    }
-  }
-  
-  return(list(states = states[1:(i + 1)], times = times[1:i]))
-}
-
-
-#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
-
-
-parametric_bootstrap <- function(trajectories, absorbing_state, dist_type, R) {
-  
-  # On calcule les paramètres du mle CHANGER LA FONCTION MLE
-  mle_params <- estimate_mle(trajectories, absorbing_state, dist_type)
-  
-  # Calcul de la statistique de test T_l A MODIFIER CAR NE FAIS PAS LE RAPPORT DE VRAISEMBLANCE, SIMPLE CALCUL SOUS H0 ICI + Y A T-IL BESOIN DES MLE_PARAMS POUR T_l
-  T_l <- log_likelihood(mle_params, trajectories, absorbing_state, dist_type)
-  
-  # Compteur pour la p-value
-  count <- 0
-  for (r in 1:R) {
-    
-    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
-    bootstrap_trajectories <- lapply(1:length(trajectories), function(i) {
-      generate_smp_trajectory(mle_params, absorbing_state, dist_type)
-    })
-    
-    # Calcule la stat de test T* pour les trajectoires générées
-    T_star <- log_likelihood(mle_params, bootstrap_trajectories, absorbing_state, dist_type)
-    
-    # Itérations pour le calcul de la p-value
-    if (T_star <= T_l) {
-      count <- count + 1
-    }
-  }
-  
-  p_boot <- count / R
-  
-  return(p_boot) #renvoie direct la p-value
-}
-```
-
 ### Permutation Test
 
 #### Introduction
@@ -478,27 +393,3 @@ C'est pour cela qu'on choisira une valeur de R égale à 1000.
 
 - Si $T_l$ est très grand, il y aura beucoup de $T^*$ plus petits donc la p-valeur sera assez grande → $H_0$ est crédible
 - Si $T_l$ est très petit, il y aura peu de $T^*$ plus petits donc la p valeur sera très petite → $H_0$ est suspect
-
-```{r}
-permutation_test <- function(trajectories, R) {
-  
-  n <- length(trajectories)  
-  
-  T_l <- log_likelihood_ratio(trajectories)
-  
-  count <- 0  
-
-  for (r in 1:R) {
-    
-    permuted_trajectories <- sample(trajectories)  
-    T_star <- log_likelihood(permuted_trajectories)
-    
-    if (T_star <= T_l) {
-      count <- count + 1
-    }
-  }
-
-  p_perm <- count / R
-
-  return(p_value = p_perm)
-}
