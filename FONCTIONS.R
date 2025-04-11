@@ -1,4 +1,6 @@
 library(MASS)
+library(doParallel)
+library(foreach)
 
 
 ### Simulation de trajectoires SMP ----
