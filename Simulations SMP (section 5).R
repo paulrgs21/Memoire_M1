@@ -80,7 +80,7 @@ estimate_SMP_params <- function(trajectories, n_states, dist_type) {
       dist_params[state, ] <- fit$estimate["rate"]
     }
   }
-  return(list(alpha=alpha, P=P, dist_params=dist_params))
+  return(list(alpha=alpha, P=round(P,digits=2), dist_params=round(dist_params,digits=2)))
 }
 
 
@@ -139,7 +139,8 @@ compute_LR <- function(trajectories1, trajectories2, n_states, dist_type) {
   logL_H1 <- log_likelihood(mle_H1_t1, trajectories1, dist_type) + log_likelihood(mle_H1_t2, trajectories2, dist_type)
   
   LR <- exp(logL_H0 - logL_H1)
-  return(list(LR = LR, log_LR = log(LR)))
+  return(list(LR = LR, log_LR = log(LR), mle_H0 = mle_H0,
+              mle_H1_t1 = mle_H1_t1, mle_H1_t2 = mle_H1_t2))
 }
 
 
@@ -266,7 +267,7 @@ n2 <- 60
 n <- n1+n2
 n_states <- 7  # Nombre d'états
 max_transitions <- 5
-dist_type <- "gamma"
+dist_type <- "weibull"
 niveau_test <- 0.05
 R <- 1000
 n_repetitions <- 500 # pour graphique
@@ -769,6 +770,9 @@ femmes <- data[data$Q1==2,]
 
 test(hommes, femmes, n_states, dist_type)
 # LR de 0, p value de 0, on rejette tout le temps H_0
+# différences notables dans les matrices de transition, par exemple au niveau du
+# service militaire. Les alpha sont identiques (on débute en études). Les
+# paramètres des lois des temps de séjour sont sensiblement similaires.
 
 test(hommes, hommes, n_states, dist_type)
 test(femmes, femmes, n_states, dist_type)
@@ -794,10 +798,78 @@ test(base_1, base_2, n_states, dist_type)
 # p-valeur de 0.46 nous indiquant qu'on est très probablement sous H_0
 # on a juste rajouté nivdip7>4 pour les 2, qui conditionne donc bcp le résultat
 
-base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>2&data$Q31A==1,]
-base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>2&data$Q31A==2,]
+base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==1,]
+base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==2,]
 test(base_1, base_2, n_states, dist_type)
 # on essaye avec "nivdip7>2 ou 3" pour voir si on reste sous H_0 ou si l'on repasse sous H1
 # avec ">3", tjrs sous H_0 (pv de 0.18), mais avec ">2", on repasse sous H_1 (pv de 0.01)
 
+
+
+### Simus avec param réels (setup : hommes vs femmes) ----
+n1 <- 8000  # Nombre de trajectoires simulées
+n2 <- 8000
+n <- n1+n2
+n_states <- 9  # Nombre d'états
+max_transitions <- 5
+dist_type <- "weibull"
+niveau_test <- 0.05
+n_repetitions <- 100 # pour graphique
+
+# Génération de P et alpha
+# pour l'instant, pas d'état absorbant
+P <- matrix(c(0.00, 0.24, 0.02, 0.02, 0.11, 0.39, 0.19, 0.02, 0.02,
+              0.46, 0.00, 0.01, 0.01, 0.06, 0.33, 0.10, 0.02, 0.01,
+              0.43, 0.13, 0.00, 0.01, 0.07, 0.26, 0.08, 0.00, 0.01,
+              0.37, 0.18, 0.01, 0.00, 0.02, 0.31, 0.09, 0.00, 0.02,
+              0.28, 0.22, 0.02, 0.01, 0.00, 0.32, 0.11, 0.04, 0.01,
+              0.21, 0.41, 0.03, 0.05, 0.18, 0.00, 0.09, 0.02, 0.01,
+              0.21, 0.25, 0.03, 0.03, 0.12, 0.25, 0.00, 0.08, 0.02,
+              0.23, 0.19, 0.01, 0.01, 0.16, 0.26, 0.14, 0.00, 0.00,
+              0.15, 0.18, 0.01, 0.01, 0.07, 0.21, 0.35, 0.02, 0.00), 
+            nrow=9, ncol=9, byrow=TRUE)
+
+alpha <- c(0,0,0,0,0,0,0,0,1)
+
+# Paramètres Weibull(on considère l'hyp w_lj = w_l)
+dist_params <- matrix(c(1.19, 24.14,
+                    1.03, 11.25,
+                    1.54, 17.91,
+                    1.36, 33.94,
+                    1.02, 11.00,
+                    0.99, 7.11,
+                    0.93, 5.50,
+                    2.85, 11.64,
+                    1.76, 8.16), 
+                  nrow=9, ncol=2, byrow=TRUE)
+
+### chi-2
+
+# Initialisation du data frame pour stocker les p-valeurs
+p_values_df <- data.frame(p_value = numeric(n_repetitions))
+# Boucle pour répéter l'expérience 500 fois
+for (i in 1:n_repetitions) {
+  # Génération des échantillons sous H0
+  smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  
+  # Calcul du ratio de vraisemblance
+  likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+  
+  # Calcul de la p-valeur
+  p_values_df$p_value[i] <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+}
+
+# ERREUR D OPTIMISATION
+
+# Graphique à la Fig. 4
+line_df <- data.frame(x = c(0, 1), y = c(0, 1))
+ggplot(p_values_df, aes(x = p_value)) +
+  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
+  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1) +  # Droite y = x
+  labs(title = "Fonction de répartition empirique des p-valeurs",
+       x = "P-valeurs",
+       y = "F(x)") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
 

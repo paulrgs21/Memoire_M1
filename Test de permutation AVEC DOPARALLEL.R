@@ -217,10 +217,14 @@ hommes <- data[data$Q1==1,]
 femmes <- data[data$Q1==2,]
 base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==1,]
 base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==2,]
+
+base_1_bis <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==1,]
+base_2_bis <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==2,]
+
 n1 <- nrow(base1)
 n2 <- nrow(base2)
 
-p_value <- permutation_test(base_1, base_2, n1, n2, R, n_states, dist_type)
+p_value <- permutation_test(base_1_bis, base_2_bis, n1, n2, R, n_states, dist_type)
 stopCluster(cl)
 print(p_value)
 
