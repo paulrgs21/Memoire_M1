@@ -19,5 +19,23 @@ seq_data <- seqdef(data[, sequence_cols], states = as.character(1:9),
 seqdplot(seq_data, with.legend = TRUE, legend.position = "bottom", legend.prop = 0.22)
 
 
+#Comparer l'entropie avant/après une réforme politique (ex : loi sur les CDD).
+# Globalement les sujets ont 23 ans en 1998 et on a eu la réformes 
+
+# Avec l'entropi on verifie la predictibilité des changements d'état
+# Exemple on voit bien que en fin de carrière l'etat est beaucoup plus prévisible exemple
+start <- which(colnames(data) == "c8")
+end <- which(colnames(data) == "c18")
+Debut_carriere <- data[, start:end]
+
+start <- which(colnames(data) == "c12")
+end <- which(colnames(data) == "c29")
+Fin_carriere <- data[, start:end]
+
+
+seq_data <- seqdef(Debut_carriere)
+entropies <- seqient(seq_data)
+hist(entropies, main = "Distribution des entropies", xlab = "Entropie")
+seq_data <- seqdef(Fin_carriere)
 entropies <- seqient(seq_data)
 hist(entropies, main = "Distribution des entropies", xlab = "Entropie")
