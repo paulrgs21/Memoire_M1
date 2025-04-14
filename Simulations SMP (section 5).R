@@ -6,19 +6,20 @@
 
 library(ggplot2)
 
-### Exemple d'utilisation ----
-n1 <- 60  # Nombre de trajectoires simulées
-n2 <- 60
+### Simus théoriques ----
+#### Paramétrage ----
+n1 <- 30  # Nombre de trajectoires simulées
+n2 <- 30
 n <- n1+n2
-n_states <- 7  # Nombre d'états
+n_states <- 4  # Nombre d'états
 max_transitions <- 5
 dist_type <- "weibull"
 niveau_test <- 0.05
-R <- 1000
-n_repetitions <- 500 # pour graphique
+R <- 500
+n_repetitions <- 100 # pour graphique
 
 # Génération de P et alpha
-# pour l'instant, pas d'état absorbant
+# pas d'état absorbant
 P <- matrix(runif(n_states^2), nrow = n_states)
 diag(P) <- 0
 P <- P / rowSums(P)
@@ -37,42 +38,61 @@ if (dist_type == "gamma") {
 }
 
 
-# Echantillon 1 (100 trajectoires)
-smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
-# Echantillon 2 (100 trajectoires, on est sous H_0 donc même setup que échantillon 1)
-smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
-
-likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
-
-
+#### Graphiques ----
 ### chi-2
-
-# Initialisation du data frame pour stocker les p-valeurs
-p_values_df <- data.frame(p_value = numeric(n_repetitions))
-# Boucle pour répéter l'expérience 500 fois
+chi2_df <- data.frame(p_value = numeric(n_repetitions))
 for (i in 1:n_repetitions) {
-  # Génération des échantillons sous H0
   smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
   smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
-  
-  # Calcul du ratio de vraisemblance
   likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
-  
-  # Calcul de la p-valeur
-  p_values_df$p_value[i] <- chi2(likelihood_ratio, n_states, dist_type)
+  chi2_df$p_value[i] <- chi2(likelihood_ratio, n_states, dist_type)
 }
+
+
+### permutation
+permutation_df <- data.frame(p_value = numeric(n_repetitions))
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+for (i in 1:n_repetitions) {
+  trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  likelihood_ratio <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
+  
+  permutation_df$p_value[i] <- permutation(likelihood_ratio, R, n_states, n1, n2,
+                                           trajectories1, trajectories2, dist_type)
+}
+
+stopCluster(cl)
 
 # Graphique à la Fig. 4
 line_df <- data.frame(x = c(0, 1), y = c(0, 1))
-ggplot(p_values_df, aes(x = p_value)) +
-  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
-  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1) +  # Droite y = x
-  labs(title = "Fonction de répartition empirique des p-valeurs",
+chi2_df$source <- "Test du Chi2"
+permutation_df$source <- "Test de permutation"
+combined_df <- rbind(chi2_df, permutation_df)
+ggplot() +
+  stat_ecdf(data = chi2_df, aes(x = p_value, color = "Test du Chi2"), 
+            geom = "step", size = 1) +
+  stat_ecdf(data = permutation_df, aes(x = p_value, color = "Test de permutation"), 
+            geom = "step", size = 1) +
+  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1, linetype = "dashed") +
+  labs(title = "Fonctions de répartition empiriques des p-valeurs",
        x = "P-valeurs",
-       y = "F(x)") +
+       y = "F(x)",
+       color = "Méthode") +
   theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("Test du Chi2" = "blue", "Test de permutation" = "darkgreen"))
 
+
+
+
+
+
+#### Niveaux empiriques ----
 # niveau empirique du test à la Table 1
 compute_empirical_level <- function(p_values_df, niveau_test) {
   # Calcul du niveau empirique : proportion de p-values < niveau_test
@@ -81,16 +101,13 @@ compute_empirical_level <- function(p_values_df, niveau_test) {
   return(empirical_level)
 }
 
-empirical_level <- compute_empirical_level(p_values_df, niveau_test)
+
+chi2_level <- compute_empirical_level(chi2_df, niveau_test)
+# 8
+permutation_level <- compute_empirical_level(permutation_df, niveau_test)
+# 4
 
 
-### parametric bootstrap
-p_value_2 <- parametric_bootstrap(smp_trajectories1, smp_trajectories2, n1, n2, n_states, max_transitions, dist_type, R)
-
-### permutation
-p_value_3 <- permutation_test(smp_trajectories1, smp_trajectories2, n1, n2, R)
-
-# très (trop) long à tourner : à optimiser pour reproduire Fig. 4
 
 
 
@@ -519,7 +536,8 @@ stopCluster(cl)
 
 
 
-### Simus avec param réels (setup : hommes vs femmes) ----
+### Simus avec param réels (setup : à changer (permutation marche pas ou prends
+### trop de temps pour un n aussi grand) !!!) ----
 n1 <- 8126  # Nombre de trajectoires simulées
 n2 <- 7914
 n <- n1+n2
@@ -527,7 +545,7 @@ n_states <- 9  # Nombre d'états
 max_transitions <- 5
 dist_type <- "weibull"
 niveau_test <- 0.05
-R <- 1000
+R <- 500
 
 # Génération de P et alpha
 P <- matrix(c(0.00, 0.24, 0.02, 0.02, 0.11, 0.39, 0.19, 0.02, 0.02,
@@ -561,6 +579,17 @@ smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params
 smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
 
 compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+# paramètres sensiblement identiques aux vrais paramètres
+# on les stocke pour utilisation :
+likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
 
 
+# on n'utilise que permutation à partir de maintenant
 
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+permutation(likelihood_ratio, R, n_states, n1, n2, smp_trajectories1, smp_trajectories2, dist_type)
+
+stopCluster(cl)
