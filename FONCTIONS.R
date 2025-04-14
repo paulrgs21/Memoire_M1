@@ -37,50 +37,57 @@ simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_tran
 
 ### Estimation theta ----
 estimate_SMP_params <- function(trajectories, n_states, dist_type) {
-  # Estimation fréquences initiales
   initial_states <- sapply(trajectories, function(x) x$states[1])
-  alpha <- table(factor(initial_states, levels=1:n_states))
-  alpha <- alpha/sum(alpha)
+  alpha <- table(factor(initial_states, levels = 1:n_states))
+  alpha <- alpha / sum(alpha)
   
-  # Estimation matrice de transitions
-  #on extrait sous forme de vecteur chaque changement de trajectoire
   all_from <- unlist(lapply(trajectories, function(traj) traj$states[-length(traj$states)]))
-  all_to   <- unlist(lapply(trajectories, function(traj) traj$states[-1]))
-  
+  all_to <- unlist(lapply(trajectories, function(traj) traj$states[-1]))
   M_from <- diag(n_states)[all_from, , drop = FALSE]
-  M_to   <- diag(n_states)[all_to, , drop = FALSE]  
-  
-  #on utilise le produit matriciel
-  transition_counts <- t(M_from) %*% M_to             
-  
+  M_to <- diag(n_states)[all_to, , drop = FALSE]
+  transition_counts <- t(M_from) %*% M_to
   P <- transition_counts / rowSums(transition_counts)
   
-  # Estimation ω (MLE par état)
-  if(dist_type == "gamma" || dist_type == "weibull") {
-    dist_params <- matrix(0, nrow = n_states, ncol = 2)
+  if (dist_type %in% c("gamma", "weibull")) {
+    dist_params <- matrix(NA_real_, nrow = n_states, ncol = 2)
   } else {
-    dist_params <- matrix(0, nrow = n_states, ncol = 1)
+    dist_params <- matrix(NA_real_, nrow = n_states, ncol = 1)
   }
   
   for (state in 1:n_states) {
     durations <- unlist(lapply(trajectories, function(traj) {
       idx <- which(traj$states[-length(traj$states)] == state)
-      if(length(idx) > 0) return(traj$times[idx]) 
-      else return(NULL)
+      if (length(idx) > 0) return(traj$times[idx]) else return(NULL)
     }))
-    if (length(durations) > 1) {
-      if(dist_type == "gamma") {
-        fit <- fitdistr(durations, "gamma", start=list(shape=1, rate=1))
-        dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["rate"])
-      } else if(dist_type == "weibull") {
-        fit <- fitdistr(durations, "weibull", start=list(shape=1, scale=1))
-        dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["scale"])
-      } else {
-        fit <- fitdistr(durations, "exponential", start=list(rate=1))
-        dist_params[state, ] <- fit$estimate["rate"]
+    
+    if (length(durations) > 1 && all(durations > 0)) {
+      fit <- tryCatch({
+        if (dist_type == "gamma") {
+          fitdistr(durations, "gamma", start = list(shape = 1, rate = 1))
+        } else if (dist_type == "weibull") {
+          fitdistr(durations, "weibull", start = list(shape = 1, scale = 1))
+        } else {
+          fitdistr(durations, "exponential", start = list(rate = 1))
+        }
+      }, error = function(e) NULL)
+      
+      if (!is.null(fit)) {
+        if (dist_type == "gamma") {
+          dist_params[state, ] <- fit$estimate[c("shape", "rate")]
+        } else if (dist_type == "weibull") {
+          dist_params[state, ] <- fit$estimate[c("shape", "scale")]
+        } else {
+          dist_params[state, ] <- fit$estimate["rate"]
+        }
       }
     }
+    
+    # Forcer valeurs par défaut si estimation vide ou invalide
+    if (any(!is.finite(dist_params[state, ]))) {
+      dist_params[state, ] <- if (dist_type %in% c("gamma", "weibull")) c(1, 1) else 1
+    }
   }
+  
   return(list(alpha=alpha, P=round(P,digits=2), dist_params=round(dist_params,digits=2)))
 }
 
@@ -203,7 +210,7 @@ chi2 <- function(LR_val, n_states, dist_type) {
 
 
 ### 2) Permutation ----
-permutation <- function(likelihood_ratio, R, n_states, dist_type) {
+permutation <- function(likelihood_ratio, R, n_states, n1, n2, trajectoires1, trajectoires2, dist_type) {
   
   count <- foreach(r = 1:R,
                    .combine = "+",
@@ -235,13 +242,98 @@ permutation <- function(likelihood_ratio, R, n_states, dist_type) {
 
 
 ### 3) Bootstrap ----
+simulate_SMP_bootstrap <- function(n, n_states, params, dist_type, max_transitions) {
+  alpha <- params$alpha
+  P <- params$P
+  dist_params <- params$dist_params
+  
+  trajectories <- vector("list", n)
+  
+  for (i in 1:n) {
+    states <- numeric(max_transitions)
+    times <- numeric(max_transitions)
+    states[1] <- sample(1:n_states, 1, prob = alpha) # État initial
+    
+    for (t in 1:(max_transitions - 1)) {
+      states[t + 1] <- sample(1:n_states, 1, prob = P[states[t], ]) # Transition
+      
+      # Tirage du temps de séjour selon la distribution spécifiée
+      if (dist_type == "gamma") {
+        times[t] <- rgamma(1, shape = dist_params[states[t], 1],
+                           rate = dist_params[states[t], 2])
+      } else if (dist_type == "weibull") {
+        times[t] <- rweibull(1, shape = dist_params[states[t], 1],
+                             scale = dist_params[states[t], 2])
+      } else {
+        times[t] <- rexp(1, rate = dist_params[states[t], 1])
+      }
+      
+    }
+    trajectories[[i]] <- list(states = states, times = times)
+  }
+  return(trajectories)
+}
+
+
+
+
+parametric_bootstrap <- function(trajectories1, trajectories2, 
+                                 n1, n2, n_states, max_transitions, 
+                                 dist_type, R, n_cores = parallel::detectCores() - 1) {
+  
+  mle_params <- estimate_SMP_params(c(trajectories1, trajectories2), n_states, dist_type)
+  if(any(sapply(mle_params, function(p) any(!is.finite(p))))) {
+    stop("Paramètres MLE non-finis détectés sous H0")
+  }
+  
+  T_l <- tryCatch(
+    compute_LR(trajectories1, trajectories2, n_states, dist_type),
+    error = function(e) stop("Erreur dans T_l : ", e$message)
+  )
+  
+  cl <- parallel::makeCluster(n_cores)
+  doParallel::registerDoParallel(cl)
+  
+  parallel::clusterExport(cl, varlist = c(
+    "simulate_SMP_bootstrap", 
+    "estimate_SMP_params", 
+    "compute_LR",
+    "log_likelihood",
+    "n1", "n2", "n_states", "max_transitions", "dist_type", "mle_params", "T_l"
+  ), envir = environment())
+  
+  # Liste pour stocker erreurs
+  error_list <- vector("list", R)
+  
+  results <- tryCatch({
+    
+    foreach::foreach(r = 1:R, .combine = '+', .packages = c("stats", "MASS"), .errorhandling = "pass") %dopar% {
+      result <- tryCatch({
+        b1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
+        b2 <- simulate_SMP_bootstrap(n2, n_states, mle_params, dist_type, max_transitions)
+        
+        T_star <- compute_LR(b1, b2, n_states, dist_type)
+        as.integer(T_star[[2]] <= T_l[[2]])
+      }, error = function(e) {
+        warning(sprintf("Échec à l'itération %d : %s", r, e$message))
+        0
+      })
+      result
+    }
+    
+  }, finally = {
+    parallel::stopCluster(cl)
+  })
+  
+  p_boot <- results / R
+  return(p_boot)
+}
 
 
 
 
 
-
-#### Fonction de test global ----
+### Fonction de test global ----
 test <- function(base1, base2, n_states, dist_type){
   
   n1 <- nrow(base1)
@@ -262,7 +354,7 @@ test <- function(base1, base2, n_states, dist_type){
   
   likelihood_ratio <- compute_LR(trajectoires1, trajectoires2, n_states, dist_type)
   
-  return(list(likelihood_ratio = likelihood_ratio))
+  return(list(likelihood_ratio = likelihood_ratio, trajectoires1 = trajectoires1, trajectoires2 = trajectoires2))
 }
 
 
