@@ -11,12 +11,12 @@ library(ggplot2)
 n1 <- 30  # Nombre de trajectoires simulées
 n2 <- 30
 n <- n1+n2
-n_states <- 4  # Nombre d'états
+n_states <- 7  # Nombre d'états
 max_transitions <- 5
 dist_type <- "weibull"
-niveau_test <- 0.01
+niveau_test <- 0.05
 R <- 500
-n_repetitions <- 100 # pour graphique
+n_repetitions <- 200 # pour graphique
 
 # Génération de P et alpha
 # pas d'état absorbant
@@ -69,23 +69,24 @@ stopCluster(cl)
 
 # Graphique à la Fig. 4
 line_df <- data.frame(x = c(0, 1), y = c(0, 1))
-chi2_df$source <- "Test du Chi2"
-permutation_df$source <- "Test de permutation"
+chi2_df$source <- "Chi-squared Test"
+permutation_df$source <- "Permutation Test"
 combined_df <- rbind(chi2_df, permutation_df)
+
 ggplot() +
-  stat_ecdf(data = chi2_df, aes(x = p_value, color = "Test du Chi2"), 
+  stat_ecdf(data = chi2_df, aes(x = p_value, color = "Chi-squared Test"), 
             geom = "step", size = 1) +
-  stat_ecdf(data = permutation_df, aes(x = p_value, color = "Test de permutation"), 
+  stat_ecdf(data = permutation_df, aes(x = p_value, color = "Permutation Test"), 
             geom = "step", size = 1) +
   geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1, linetype = "dashed") +
-  labs(title = "Fonctions de répartition empiriques des p-valeurs",
-       x = "P-valeurs",
+  labs(title = "Empirical Cumulative Distribution Functions of P-values",
+       x = "P-values",
        y = "F(x)",
-       color = "Méthode") +
+       color = "Method") +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         legend.position = "bottom") +
-  scale_color_manual(values = c("Test du Chi2" = "blue", "Test de permutation" = "darkgreen"))
+  scale_color_manual(values = c("Chi-squared Test" = "blue", "Permutation Test" = "darkgreen"))
 
 
 
@@ -101,9 +102,9 @@ compute_empirical_level <- function(p_values_df, niveau_test) {
 
 
 chi2_level <- compute_empirical_level(chi2_df, niveau_test)
-# 8
+# 12.5 (à 5%)
 permutation_level <- compute_empirical_level(permutation_df, niveau_test)
-# 4
+# 7.5 (à 5%)
 
 
 
