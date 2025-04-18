@@ -4,276 +4,22 @@
 # paramètres des lois aléatoires pour simus
 # hypothèse w_lj = w_l
 
-library(MASS)
 library(ggplot2)
 
-### Simulation de trajectoires SMP ----
-simulate_SMP <- function(n, n_states, P, alpha, dist_type, dist_params, max_transitions) {
-  trajectories <- vector("list", n)
-  
-  for (i in 1:n) {
-    states <- numeric(max_transitions)
-    times <- numeric(max_transitions)
-    states[1] <- sample(1:n_states, 1, prob = alpha) # État initial
-    
-    for (t in 1:(max_transitions - 1)) {
-      states[t + 1] <- sample(1:n_states, 1, prob = P[states[t], ]) # Transition
-      
-      # Tirage du temps de séjour selon la distribution spécifiée
-      if (dist_type == "gamma") {
-        times[t] <- rgamma(1, shape = dist_params[states[t], 1],
-                           rate = dist_params[states[t], 2])
-      } else if (dist_type == "weibull") {
-        times[t] <- rweibull(1, shape = dist_params[states[t], 1],
-                             scale = dist_params[states[t], 2])
-      } else {
-        times[t] <- rexp(1, rate = dist_params[states[t], 1])
-      }
-    
-    }
-    trajectories[[i]] <- list(states = states, times = times)
-  }
-  return(trajectories)
-}
-
-
-
-### Estimation theta ----
-estimate_SMP_params <- function(trajectories, n_states, dist_type) {
-  # Estimation α (fréquences initiales)
-  initial_states <- sapply(trajectories, function(x) x$states[1])
-  alpha <- table(factor(initial_states, levels=1:n_states))
-  alpha <- alpha/sum(alpha)
-  
-  # Estimation P (matrice de transitions)
-  transition_counts <- matrix(0, n_states, n_states)
-  for (traj in trajectories) {
-    states <- traj$states
-    for (i in 1:(length(states)-1)) {
-      transition_counts[states[i], states[i+1]] <- transition_counts[states[i], states[i+1]] + 1
-    }
-  }
-  P <- transition_counts/rowSums(transition_counts)
-  
-  # Estimation ω (MLE par état)
-  if(dist_type == "gamma" || dist_type == "weibull") {
-    dist_params <- matrix(0, nrow = n_states, ncol = 2)
-  } else {
-    dist_params <- matrix(0, nrow = n_states, ncol = 1)
-  }
-  
-  for (state in 1:n_states) {
-    durations <- unlist(lapply(trajectories, function(traj) {
-      idx <- which(traj$states[-length(traj$states)] == state)
-      if(length(idx) > 0) return(traj$times[idx]) 
-      else return(NULL)
-    }))
-    
-    if(dist_type == "gamma") {
-      fit <- fitdistr(durations, "gamma", start=list(shape=1, rate=1))
-      dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["rate"])
-    } else if(dist_type == "weibull") {
-      fit <- fitdistr(durations, "weibull", start=list(shape=1, scale=1))
-      dist_params[state, ] <- c(fit$estimate["shape"], fit$estimate["scale"])
-    } else {
-      fit <- fitdistr(durations, "exponential", start=list(shape=1))
-      dist_params[state, ] <- fit$estimate["rate"]
-    }
-  }
-  return(list(alpha=alpha, P=round(P,digits=2), dist_params=round(dist_params,digits=2)))
-}
-
-
-### Log-vraisemblance ----
-log_likelihood <- function(params, trajectories, dist_type) {
-  alpha <- params$alpha
-  P <- params$P
-  dist_params <- params$dist_params
-  logL <- 0
-  epsilon <- 1e-10
-  
-  for (traj in trajectories) {
-    states <- traj$states
-    times <- traj$times
-    
-    # Terme initial alpha_j1
-    logL <- logL + log(max(alpha[states[1]], epsilon))
-    
-    m <- length(states) - 1
-    
-    for (i in 1:m) {
-      from <- states[i]
-      to <- states[i+1]
-      
-      # Terme de transition P_ij
-      logL <- logL + log(max(P[from, to], epsilon))
-      
-      # Terme de durée
-      if (dist_type == "gamma") {
-        logL <- logL + dgamma(times[i], shape = dist_params[from, 1], rate = dist_params[from, 2], log = TRUE)
-      } else if (dist_type == "weibull") {
-        logL <- logL + dweibull(times[i], shape = dist_params[from, 1], scale = dist_params[from, 2], log = TRUE)
-      } else if (dist_type == "exponential") {
-        logL <- logL + dexp(times[i], rate = dist_params[from, 1], log = TRUE)
-      }
-    }
-  }
-  
-  return(logL)
-}
-
-
-
-### Ratio de vraisemblance ----
-compute_LR <- function(trajectories1, trajectories2, n_states, dist_type) {
-  # Estimation sous H0 (données regroupées)
-  mle_H0 <- estimate_SMP_params(c(trajectories1, trajectories2), n_states, dist_type)
-  
-  # Estimation sous H1 (données séparées)
-  mle_H1_t1 <- estimate_SMP_params(trajectories1, n_states, dist_type)
-  mle_H1_t2 <- estimate_SMP_params(trajectories2, n_states, dist_type)
-  
-  # Calcul des log-vraisemblances
-  logL_H0 <- log_likelihood(mle_H0, c(trajectories1, trajectories2), dist_type)
-  
-  logL_H1 <- log_likelihood(mle_H1_t1, trajectories1, dist_type) + log_likelihood(mle_H1_t2, trajectories2, dist_type)
-  
-  LR <- exp(logL_H0 - logL_H1)
-  return(list(LR = LR, log_LR = log(LR), mle_H0 = mle_H0,
-              mle_H1_t1 = mle_H1_t1, mle_H1_t2 = mle_H1_t2))
-}
-
-
-
-### 1) Chi-2 ----
-compute_asymptotic_pvalue <- function(LR_val, n_states, dist_type) {
-  # Calcul des degrés de liberté
-  k <- ifelse(dist_type %in% c("gamma", "weibull"), 2, 1) #calcul du nombre de paramètres 
-  #if (is.null(absorbing_state)) { #le degré de liberté depend de la présence ou non d'un état absorbant.
-  d <- n_states^2 - n_states - 1 + k*n_states # car hyp w_lj=w_l
-  #} else { pour l'instant, pas d'état absorbant
-    #d <- n_states^2 - 2*n_states +k*(n_states - 1)
-  #}
-  
-  # Calcul de la p-value
-  test_stat <- -2*LR_val[[2]]
-  pval <- 1 - pchisq(test_stat, df = d)
-  return(pval)
-}
-
-
-
-### 2) Parametric bootstrap ----
-# on vient générer un échantillon de trajectoires suivant les paramètres du MLE sous H0 :
-simulate_SMP_bootstrap <- function(n, n_states, params, dist_type, max_transitions) {
-  alpha <- params$alpha
-  P <- params$P
-  dist_params <- params$dist_params
-  
-  trajectories <- vector("list", n)
-  
-  for (i in 1:n) {
-    states <- numeric(max_transitions)
-    times <- numeric(max_transitions)
-    states[1] <- sample(1:n_states, 1, prob = alpha) # État initial
-    
-    for (t in 1:(max_transitions - 1)) {
-      states[t + 1] <- sample(1:n_states, 1, prob = P[states[t], ]) # Transition
-      
-      # Tirage du temps de séjour selon la distribution spécifiée
-      if (dist_type == "gamma") {
-        times[t] <- rgamma(1, shape = dist_params[states[t], 1],
-                           rate = dist_params[states[t], 2])
-      } else if (dist_type == "weibull") {
-        times[t] <- rweibull(1, shape = dist_params[states[t], 1],
-                             scale = dist_params[states[t], 2])
-      } else {
-        times[t] <- rexp(1, rate = dist_params[states[t], 1])
-      }
-      
-    }
-    trajectories[[i]] <- list(states = states, times = times)
-  }
-  return(trajectories)
-}
-
-
-
-#On vient ensuite effectuer R fois ce processus en calculant la statistique de test à chaque fois
-
-parametric_bootstrap <- function(trajectories1, trajectories2, n1, n2, n_states, max_transitions, dist_type, R) {
-  
-  # On calcule les paramètres du MLE (pour générer les échantillons)
-  mle_params <- estimate_SMP_params(c(trajectories1, trajectories2), n_states, dist_type)
-  
-  # Calcul de la statistique de test T_l
-  T_l <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
-  
-  # Compteur pour la p-value
-  count <- 0
-  for (r in 1:R) {
-    
-    # Génére n trajectoires indépendantes sous H0 avec les paramètres du MLE
-    bootstrap_trajectories1 <- simulate_SMP_bootstrap(n1, n_states, mle_params, dist_type, max_transitions)
-    bootstrap_trajectories2 <- simulate_SMP_bootstrap(n2, n_states, mle_params, dist_type, max_transitions)
-    
-    # Calcule la stat de test T* pour les trajectoires générées
-    T_star <- compute_LR(bootstrap_trajectories1, bootstrap_trajectories2, n_states, dist_type)
-    
-    # Itérations pour le calcul de la p-value
-    if (T_star[[2]] <= T_l[[2]]) {
-      count <- count + 1
-    }
-  }
-  
-  p_boot <- count / R
-  
-  return(p_boot)
-}
-
-
-
-### 3) Permutation ----
-permutation_test <- function(trajectories1, trajectories2, n1, n2, R) {
-  
-  T_l <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
-  
-  count <- 0  
-  
-  for (r in 1:R) {
-    
-    permutation <- sample(1:(n1+n2), n1+n2, replace = FALSE) # Permutation aléatoire
-    
-    perm_traj1 <- c(trajectories1, trajectories2)[permutation[1:n1]]
-    perm_traj2 <- c(trajectories1, trajectories2)[permutation[(n1+1):(n1+n2)]]
-    
-    T_star <- compute_LR(perm_traj1, perm_traj2, n_states, dist_type)
-    
-    if (T_star[[2]] <= T_l[[2]]) {
-      count <- count + 1
-    }
-  }
-  
-  p_perm <- count / R
-  
-  return(p_perm)
-}
-
-
-
-### Exemple d'utilisation ----
-n1 <- 60  # Nombre de trajectoires simulées
-n2 <- 60
+### Simus théoriques ----
+#### Paramétrage ----
+n1 <- 30  # Nombre de trajectoires simulées
+n2 <- 30
 n <- n1+n2
 n_states <- 7  # Nombre d'états
 max_transitions <- 5
 dist_type <- "weibull"
 niveau_test <- 0.05
-R <- 1000
-n_repetitions <- 500 # pour graphique
+R <- 500
+n_repetitions <- 200 # pour graphique
 
 # Génération de P et alpha
-# pour l'instant, pas d'état absorbant
+# pas d'état absorbant
 P <- matrix(runif(n_states^2), nrow = n_states)
 diag(P) <- 0
 P <- P / rowSums(P)
@@ -292,42 +38,60 @@ if (dist_type == "gamma") {
 }
 
 
-# Echantillon 1 (100 trajectoires)
-smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
-# Echantillon 2 (100 trajectoires, on est sous H_0 donc même setup que échantillon 1)
-smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
-
-likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
-
-
+#### Graphiques ----
 ### chi-2
-
-# Initialisation du data frame pour stocker les p-valeurs
-p_values_df <- data.frame(p_value = numeric(n_repetitions))
-# Boucle pour répéter l'expérience 500 fois
+chi2_df <- data.frame(p_value = numeric(n_repetitions))
 for (i in 1:n_repetitions) {
-  # Génération des échantillons sous H0
   smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
   smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
-  
-  # Calcul du ratio de vraisemblance
   likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
-  
-  # Calcul de la p-valeur
-  p_values_df$p_value[i] <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
+  chi2_df$p_value[i] <- chi2(likelihood_ratio, n_states, dist_type)
 }
+
+
+### permutation
+permutation_df <- data.frame(p_value = numeric(n_repetitions))
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+for (i in 1:n_repetitions) {
+  trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  likelihood_ratio <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
+  
+  permutation_df$p_value[i] <- permutation(likelihood_ratio, R, n_states, n1, n2,
+                                           trajectories1, trajectories2, dist_type)
+}
+
+stopCluster(cl)
 
 # Graphique à la Fig. 4
 line_df <- data.frame(x = c(0, 1), y = c(0, 1))
-ggplot(p_values_df, aes(x = p_value)) +
-  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
-  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1) +  # Droite y = x
-  labs(title = "Fonction de répartition empirique des p-valeurs",
-       x = "P-valeurs",
-       y = "F(x)") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+chi2_df$source <- "Chi-squared Test"
+permutation_df$source <- "Permutation Test"
+combined_df <- rbind(chi2_df, permutation_df)
 
+ggplot() +
+  stat_ecdf(data = chi2_df, aes(x = p_value, color = "Chi-squared Test"), 
+            geom = "step", size = 1) +
+  stat_ecdf(data = permutation_df, aes(x = p_value, color = "Permutation Test"), 
+            geom = "step", size = 1) +
+  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1, linetype = "dashed") +
+  labs(title = "Empirical Cumulative Distribution Functions of P-values",
+       x = "P-values",
+       y = "F(x)",
+       color = "Method") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "bottom") +
+  scale_color_manual(values = c("Chi-squared Test" = "blue", "Permutation Test" = "darkgreen"))
+
+
+
+
+#### Niveaux empiriques ----
 # niveau empirique du test à la Table 1
 compute_empirical_level <- function(p_values_df, niveau_test) {
   # Calcul du niveau empirique : proportion de p-values < niveau_test
@@ -336,17 +100,72 @@ compute_empirical_level <- function(p_values_df, niveau_test) {
   return(empirical_level)
 }
 
-empirical_level <- compute_empirical_level(p_values_df, niveau_test)
+
+chi2_level <- compute_empirical_level(chi2_df, niveau_test)
+# 12.5 (à 5%)
+permutation_level <- compute_empirical_level(permutation_df, niveau_test)
+# 7.5 (à 5%)
 
 
-### parametric bootstrap
-p_value_2 <- parametric_bootstrap(smp_trajectories1, smp_trajectories2, n1, n2, n_states, max_transitions, dist_type, R)
+
+
+#### Puissances ----
+# SOUS H1
+P1 <- matrix(runif(n_states^2), nrow = n_states)
+diag(P1) <- 0
+P1 <- P1 / rowSums(P1)
+
+P2 <- matrix(runif(n_states^2), nrow = n_states)
+diag(P2) <- 0
+P2 <- P2 / rowSums(P2)
+
+alpha <- runif(n_states,0,1)
+alpha <- alpha/sum(alpha)
+
+# Paramètres Gamma/Weibull/Exp pour chaque état (on considère l'hyp w_lj = w_l)
+# pris aléatoirement pour le moment
+if (dist_type == "gamma") {
+  dist_params1 <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
+  dist_params2 <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
+} else if (dist_type == "weibull") {
+  dist_params1 <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
+  dist_params2 <- matrix(round(runif(n_states * 2, min = 1, max = 5), 2), ncol = 2, byrow = TRUE)
+} else {
+  dist_params1 <- matrix(round(runif(n_states, min = 0.5, max = 2), 2), ncol = 1)
+  dist_params2 <- matrix(round(runif(n_states, min = 0.5, max = 2), 2), ncol = 1)
+}
+
+### chi-2
+chi2_df <- data.frame(p_value = numeric(n_repetitions))
+for (i in 1:n_repetitions) {
+  smp_trajectories1 <- simulate_SMP(n1, n_states, P1, alpha, dist_type, dist_params1, max_transitions)
+  smp_trajectories2 <- simulate_SMP(n2, n_states, P2, alpha, dist_type, dist_params2, max_transitions)
+  likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+  chi2_df$p_value[i] <- chi2(likelihood_ratio, n_states, dist_type)
+}
+
+mean(chi2_df$p_value < niveau_test)
+
 
 ### permutation
-p_value_3 <- permutation_test(smp_trajectories1, smp_trajectories2, n1, n2, R)
+permutation_df <- data.frame(p_value = numeric(n_repetitions))
 
-# très (trop) long à tourner : à optimiser pour reproduire Fig. 4
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
 
+for (i in 1:n_repetitions) {
+  trajectories1 <- simulate_SMP(n1, n_states, P1, alpha, dist_type, dist_params1, max_transitions)
+  trajectories2 <- simulate_SMP(n2, n_states, P2, alpha, dist_type, dist_params2, max_transitions)
+  likelihood_ratio <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
+  
+  permutation_df$p_value[i] <- permutation(likelihood_ratio, R, n_states, n1, n2,
+                                           trajectories1, trajectories2, dist_type)
+}
+
+stopCluster(cl)
+
+mean(permutation_df$p_value < niveau_test)
 
 
 
@@ -378,29 +197,6 @@ skim(data)
 
 
 ## 2)
-# n_states = 9
-# Fonction pour transformer les données d'un individu en format semi-markovien
-formatage_smp <- function(row) {
-  # Extraire les colonnes c1 à c94 qui représentent les états mensuels
-  colonnes_etats <- paste0("c", 1:94)
-  states <- as.numeric(row[colonnes_etats])
-  
-  # Identifier les changements d'état (TRUE quand il y a changement)
-  changements <- c(TRUE, states[-1] != states[-length(states)])
-  
-  # Extraire la séquence d'états uniques (sans répétition d'états consécutifs identiques)
-  etats_uniques <- states[changements]
-  
-  # Calculer les temps de séjour dans chaque état
-  times <- as.double(rle(states)$lengths)
-  
-  # Retourner une liste avec les états et les durées
-  return(list(
-    states = etats_uniques,
-    times = times
-  ))
-}
-
 # Appliquer la transformation à chaque individu et créer la liste finale
 trajectoires_smp <- list()
 for(i in 1:nrow(data)) {
@@ -728,35 +524,6 @@ summary(nombre_transitions)
 
 
 
-#### Fonction de test global ----
-test <- function(base1, base2, n_states, dist_type){
-  
-  n1 <- nrow(base1)
-  n2 <- nrow(base2)
-  n <- n1+n2
-  
-  trajectoires1 <- list()
-  for(i in 1:nrow(base1)) {
-    id <- base1$IDENT[i]
-    trajectoires1[[as.character(id)]] <- formatage_smp(base1[i,])
-  }
-  
-  trajectoires2 <- list()
-  for(i in 1:nrow(base2)) {
-    id <- base2$IDENT[i]
-    trajectoires2[[as.character(id)]] <- formatage_smp(base2[i,])
-  }
-  
-  likelihood_ratio <- compute_LR(trajectoires1, trajectoires2, n_states, dist_type)
-  
-  # p-valeur du Chi-2
-  pv_chi_2 <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
-  
-  return(list(pv_chi_2 = pv_chi_2, likelihood_ratio = likelihood_ratio))
-}
-
-
-
 #### 1er test H vs F ----
 # Leurs trajectoires professionnelles suivent-ils la même loi SMP ?
 
@@ -781,95 +548,183 @@ test(femmes, femmes, n_states, dist_type)
 
 
 
-#### 2ème test ----
+#### autres tests ----
 # tentative de test significatif :
 # test entre individus similaires, n'étant différents que par le fait d'avoir
 # eu une mobilité de commune durant le parcours scolaire ou non (Q31A)
 
 base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==1,]
 base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==2,]
-test(base_1, base_2, n_states, dist_type)
-# ici p-valeur de 6.5e-5 donc on est sous H1
+
+test2 <- test(base_1, base_2, n_states, dist_type)
+
+chi2(test2$likelihood_ratio, n_states, dist_type)
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+permutation(test2$likelihood_ratio, 1000, n_states, nrow(base_1), nrow(base_2),
+            test2$trajectoires1, test2$trajectoires2, dist_type)
+
+stopCluster(cl)
+# on est sous H0, p valeur de 1 avec chi2, p valeur de 0.471 avec permut
 
 
 base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>4&data$Q31A==1,]
 base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>4&data$Q31A==2,]
-test(base_1, base_2, n_states, dist_type)
-# p-valeur de 0.46 nous indiquant qu'on est très probablement sous H_0
-# on a juste rajouté nivdip7>4 pour les 2, qui conditionne donc bcp le résultat
+test3 <- test(base_1, base_2, n_states, dist_type)
 
-base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==1,]
-base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$nivdip7>3&data$Q31A==2,]
-test(base_1, base_2, n_states, dist_type)
-# on essaye avec "nivdip7>2 ou 3" pour voir si on reste sous H_0 ou si l'on repasse sous H1
-# avec ">3", tjrs sous H_0 (pv de 0.18), mais avec ">2", on repasse sous H_1 (pv de 0.01)
+chi2(test3$likelihood_ratio, n_states, dist_type)
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+permutation(test3$likelihood_ratio, 1000, n_states, nrow(base_1), nrow(base_2),
+            test3$trajectoires1, test3$trajectoires2, dist_type)
+
+stopCluster(cl)
+# on est sous H0 ? p-valeur de 0.0005 avec chi-2, 0.155 puis 0.16 avec permut
+# peut-être sous H1 car chi2 rejette trop souvent H0
 
 
 
-### Simus avec param réels (setup : hommes vs femmes) ----
-n1 <- 8000  # Nombre de trajectoires simulées
-n2 <- 8000
+
+### Simus avec param réels ----
+### (setup : à changer (permutation marche pas ou prends
+### trop de temps pour un n aussi grand) !!!)
+### on prend le setup du dernier test
+n1 <- 339
+n2 <- 192
 n <- n1+n2
-n_states <- 9  # Nombre d'états
+n_states <- 9
 max_transitions <- 5
 dist_type <- "weibull"
-niveau_test <- 0.05
-n_repetitions <- 100 # pour graphique
+R <- 1000
+
+test3$likelihood_ratio
+
+
+
+### SOUS H0
 
 # Génération de P et alpha
-# pour l'instant, pas d'état absorbant
-P <- matrix(c(0.00, 0.24, 0.02, 0.02, 0.11, 0.39, 0.19, 0.02, 0.02,
-              0.46, 0.00, 0.01, 0.01, 0.06, 0.33, 0.10, 0.02, 0.01,
-              0.43, 0.13, 0.00, 0.01, 0.07, 0.26, 0.08, 0.00, 0.01,
-              0.37, 0.18, 0.01, 0.00, 0.02, 0.31, 0.09, 0.00, 0.02,
-              0.28, 0.22, 0.02, 0.01, 0.00, 0.32, 0.11, 0.04, 0.01,
-              0.21, 0.41, 0.03, 0.05, 0.18, 0.00, 0.09, 0.02, 0.01,
-              0.21, 0.25, 0.03, 0.03, 0.12, 0.25, 0.00, 0.08, 0.02,
-              0.23, 0.19, 0.01, 0.01, 0.16, 0.26, 0.14, 0.00, 0.00,
-              0.15, 0.18, 0.01, 0.01, 0.07, 0.21, 0.35, 0.02, 0.00), 
+P <- matrix(c(0.00, 0.20, 0.01, 0.04, 0.08, 0.42, 0.17, 0.08, 0.00,
+              0.54, 0.00, 0.01, 0.01, 0.04, 0.26, 0.08, 0.06, 0.01,
+              0.67, 0.05, 0.00, 0.00, 0.00, 0.29, 0.00, 0.00, 0.00,
+              0.46, 0.19, 0.00, 0.00, 0.00, 0.31, 0.04, 0.00, 0.00,
+              0.41, 0.19, 0.01, 0.00, 0.00, 0.26, 0.06, 0.08, 0.00,
+              0.39, 0.31, 0.02, 0.05, 0.10, 0.00, 0.07, 0.06, 0.02,
+              0.26, 0.22, 0.02, 0.01, 0.05, 0.18, 0.00, 0.23, 0.02,
+              0.27, 0.19, 0.01, 0.00, 0.03, 0.34, 0.16, 0.00, 0.01,
+              0.23, 0.17, 0.00, 0.01, 0.02, 0.17, 0.32, 0.08, 0.00), 
             nrow=9, ncol=9, byrow=TRUE)
 
 alpha <- c(0,0,0,0,0,0,0,0,1)
 
-# Paramètres Weibull(on considère l'hyp w_lj = w_l)
-dist_params <- matrix(c(1.19, 24.14,
-                    1.03, 11.25,
-                    1.54, 17.91,
-                    1.36, 33.94,
-                    1.02, 11.00,
-                    0.99, 7.11,
-                    0.93, 5.50,
-                    2.85, 11.64,
-                    1.76, 8.16), 
-                  nrow=9, ncol=2, byrow=TRUE)
+# Paramètres Weibull (on considère l'hyp w_lj = w_l)
+dist_params <- matrix(c(1.15, 22.86,
+                        1.07, 10.69,
+                        1.54, 17.30,
+                        1.43, 36.10,
+                        1.08, 10.18,
+                        1.06, 7.14,
+                        0.98, 4.33,
+                        3.15, 12.15,
+                        2.14, 8.23), 
+                      nrow=9, ncol=2, byrow=TRUE)
 
-### chi-2
+# Echantillon 1
+smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+# Echantillon 2 (on est sous H_0 donc même setup que échantillon 1)
+smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
 
-# Initialisation du data frame pour stocker les p-valeurs
-p_values_df <- data.frame(p_value = numeric(n_repetitions))
-# Boucle pour répéter l'expérience 500 fois
-for (i in 1:n_repetitions) {
-  # Génération des échantillons sous H0
-  smp_trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
-  smp_trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
-  
-  # Calcul du ratio de vraisemblance
-  likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
-  
-  # Calcul de la p-valeur
-  p_values_df$p_value[i] <- compute_asymptotic_pvalue(likelihood_ratio, n_states, dist_type)
-}
+compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+# paramètres sensiblement identiques aux vrais paramètres
+# on les stocke pour utilisation :
+likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
 
-# ERREUR D OPTIMISATION
 
-# Graphique à la Fig. 4
-line_df <- data.frame(x = c(0, 1), y = c(0, 1))
-ggplot(p_values_df, aes(x = p_value)) +
-  stat_ecdf(geom = "step", color = "blue", size = 1) +  # Fonction de répartition empirique
-  geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1) +  # Droite y = x
-  labs(title = "Fonction de répartition empirique des p-valeurs",
-       x = "P-valeurs",
-       y = "F(x)") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+# on n'utilise que permutation à partir de maintenant
 
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+permutation(likelihood_ratio, R, n_states, n1, n2, smp_trajectories1, smp_trajectories2, dist_type)
+
+stopCluster(cl)
+# p-valeur de 0.7, on est bien sous H0
+
+
+
+### SOUS H1
+
+# Génération de P et alpha
+P1 <- matrix(c(0.00, 0.20, 0.02, 0.04, 0.08, 0.42, 0.14, 0.10, 0.00,
+               0.51, 0.00, 0.01, 0.01, 0.04, 0.26, 0.08, 0.07, 0.01,
+               0.69, 0.06, 0.00, 0.00, 0.00, 0.25, 0.00, 0.00, 0.00,
+               0.44, 0.22, 0.00, 0.00, 0.00, 0.28, 0.06, 0.00, 0.00,
+               0.42, 0.20, 0.02, 0.00, 0.00, 0.27, 0.05, 0.05, 0.00,
+               0.33, 0.31, 0.02, 0.05, 0.12, 0.00, 0.07, 0.08, 0.03,
+               0.27, 0.22, 0.01, 0.02, 0.05, 0.20, 0.00, 0.22, 0.01,
+               0.25, 0.19, 0.02, 0.00, 0.04, 0.33, 0.16, 0.00, 0.01,
+               0.20, 0.17, 0.01, 0.01, 0.02, 0.18, 0.34, 0.08, 0.00), 
+             nrow=9, ncol=9, byrow=TRUE)
+
+P2 <- matrix(c(0.00, 0.20, 0.00, 0.05, 0.07, 0.43, 0.21, 0.04, 0.00,
+               0.61, 0.00, 0.00, 0.00, 0.03, 0.25, 0.07, 0.03, 0.01,
+               0.60, 0.00, 0.00, 0.00, 0.00, 0.40, 0.00, 0.00, 0.00,
+               0.50, 0.12, 0.00, 0.00, 0.00, 0.38, 0.00, 0.00, 0.00,
+               0.38, 0.17, 0.00, 0.00, 0.00, 0.21, 0.08, 0.17, 0.00,
+               0.54, 0.29, 0.02, 0.03, 0.06, 0.00, 0.05, 0.01, 0.00,
+               0.26, 0.22, 0.03, 0.01, 0.06, 0.14, 0.00, 0.25, 0.03,
+               0.31, 0.20, 0.00, 0.00, 0.00, 0.35, 0.14, 0.00, 0.00,
+               0.27, 0.17, 0.00, 0.01, 0.04, 0.14, 0.29, 0.09, 0.00), 
+             nrow=9, ncol=9, byrow=TRUE)
+
+alpha <- c(0,0,0,0,0,0,0,0,1)
+
+# Paramètres Weibull (on considère l'hyp w_lj = w_l)
+dist_params1 <- matrix(c(1.09, 22.11,
+                         1.04, 10.07,
+                         1.72, 17.98,
+                         1.32, 30.68,
+                         1.07, 11.00,
+                         1.03, 7.30,
+                         1.02, 4.38,
+                         3.22, 12.23,
+                         2.07, 8.18), 
+                       nrow=9, ncol=2, byrow=TRUE)
+
+
+dist_params2 <- matrix(c(1.30, 24.25,
+                         1.16, 12.15,
+                         1.18, 14.86,
+                         2.02, 48.61,
+                         1.16, 8.01,
+                         1.17, 6.74,
+                         0.92, 4.23,
+                         2.97, 11.93,
+                         2.40, 8.35), 
+                       nrow=9, ncol=2, byrow=TRUE)
+
+
+# Echantillon 1
+smp_trajectories1 <- simulate_SMP(n1, n_states, P1, alpha, dist_type, dist_params1, max_transitions)
+smp_trajectories2 <- simulate_SMP(n2, n_states, P2, alpha, dist_type, dist_params2, max_transitions)
+
+compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+# paramètres sensiblement identiques aux vrais paramètres
+# on les stocke pour utilisation :
+likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+permutation(likelihood_ratio, R, n_states, n1, n2, smp_trajectories1, smp_trajectories2, dist_type)
+
+stopCluster(cl)
+# p-valeur de 0.011, on rejette bien H0
