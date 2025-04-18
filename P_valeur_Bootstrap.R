@@ -340,9 +340,11 @@ for(i in 1:400) {#nrow(data)
 
 test_boostrap(base_1, base_2, n_states, dist_type)
 
-p_value_2 <- parametric_bootstrap(trajectoires_smp1, trajectoires_smp2, 1400, 330, n_states, 9, dist_type, 1000)
+p_value_2 <- parametric_bootstrap(smp_trajectories1, smp_trajectories2, n1, n2, n_states, 9, dist_type, 1000)
 
 print(p_value_2)
+#0.58
+#0.018
 
 
 
