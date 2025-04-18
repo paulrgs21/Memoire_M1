@@ -324,8 +324,8 @@ skim(data)
 n_states <- 9
 dist_type <- "weibull"
 
-base_1 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==1,]
-base_2 <- data[data$Q1==1&data$Q31==11&data$perefr==1&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==2,]
+base_1 <- data[data$Q1==1,]
+base_2 <- data[data$Q1==2,]
 trajectoires_smp1 <- list()
 for(i in 1:400) {
   id <- base_1$IDENT[i]
@@ -336,7 +336,6 @@ for(i in 1:400) {#nrow(data)
   id <- base_2$IDENT[i]
   trajectoires_smp2[[as.character(id)]] <- formatage_smp(data[i,])
 }
-
 
 
 test_boostrap(base_1, base_2, n_states, dist_type)
