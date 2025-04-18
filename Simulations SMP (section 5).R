@@ -67,16 +67,40 @@ for (i in 1:n_repetitions) {
 
 stopCluster(cl)
 
+
+### bootstrap
+bootstrap_df <- data.frame(p_value = numeric(n_repetitions))
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+for (i in 1:n_repetitions) {
+  trajectories1 <- simulate_SMP(n1, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  trajectories2 <- simulate_SMP(n2, n_states, P, alpha, dist_type, dist_params, max_transitions)
+  likelihood_ratio <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
+  
+  bootstrap_df$p_value[i] <- parametric_bootstrap(trajectories1, trajectories2, 
+                                                  n1, n2, n_states, max_transitions, 
+                                                  dist_type, R, n_cores = parallel::detectCores() - 1)
+}
+
+stopCluster(cl)
+
+
+
 # Graphique à la Fig. 4
 line_df <- data.frame(x = c(0, 1), y = c(0, 1))
 chi2_df$source <- "Chi-squared Test"
 permutation_df$source <- "Permutation Test"
-combined_df <- rbind(chi2_df, permutation_df)
-
+bootstrap_df$source <- "Parametric Bootstrap Test"
+combined_df <- rbind(chi2_df, permutation_df, bootstrap_df)
 ggplot() +
   stat_ecdf(data = chi2_df, aes(x = p_value, color = "Chi-squared Test"), 
             geom = "step", size = 1) +
   stat_ecdf(data = permutation_df, aes(x = p_value, color = "Permutation Test"), 
+            geom = "step", size = 1) +
+  stat_ecdf(data = bootstrap_df, aes(x = p_value, color = "Parametric Bootstrap Test"), 
             geom = "step", size = 1) +
   geom_line(data = line_df, aes(x = x, y = y), color = "red", size = 1, linetype = "dashed") +
   labs(title = "Empirical Cumulative Distribution Functions of P-values",
@@ -86,7 +110,8 @@ ggplot() +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         legend.position = "bottom") +
-  scale_color_manual(values = c("Chi-squared Test" = "blue", "Permutation Test" = "darkgreen"))
+  scale_color_manual(values = c("Chi-squared Test" = "blue", "Permutation Test" = "darkgreen",
+                                "Parametric Bootstrap Test" = "brown"))
 
 
 
@@ -102,10 +127,11 @@ compute_empirical_level <- function(p_values_df, niveau_test) {
 
 
 chi2_level <- compute_empirical_level(chi2_df, niveau_test)
-# 12.5 (à 5%)
+# 17.5 (à 5%) (30_7) 6.5 (60_4)
 permutation_level <- compute_empirical_level(permutation_df, niveau_test)
-# 7.5 (à 5%)
-
+# 4.5 (à 5%) (30_7) 7 (60_4)
+bootstrap_level <- compute_empirical_level(bootstrap_df, niveau_test)
+# 7 (à 5%) (30_7) 4 (60_4)
 
 
 
@@ -135,6 +161,7 @@ if (dist_type == "gamma") {
   dist_params2 <- matrix(round(runif(n_states, min = 0.5, max = 2), 2), ncol = 1)
 }
 
+
 ### chi-2
 chi2_df <- data.frame(p_value = numeric(n_repetitions))
 for (i in 1:n_repetitions) {
@@ -143,8 +170,6 @@ for (i in 1:n_repetitions) {
   likelihood_ratio <- compute_LR(smp_trajectories1, smp_trajectories2, n_states, dist_type)
   chi2_df$p_value[i] <- chi2(likelihood_ratio, n_states, dist_type)
 }
-
-mean(chi2_df$p_value < niveau_test)
 
 
 ### permutation
@@ -165,7 +190,30 @@ for (i in 1:n_repetitions) {
 
 stopCluster(cl)
 
-mean(permutation_df$p_value < niveau_test)
+
+### bootstrap
+bootstrap_df <- data.frame(p_value = numeric(n_repetitions))
+
+nb_cores <- parallel::detectCores() - 1
+cl <- makeCluster(nb_cores)
+registerDoParallel(cl)
+
+for (i in 1:n_repetitions) {
+  trajectories1 <- simulate_SMP(n1, n_states, P1, alpha, dist_type, dist_params1, max_transitions)
+  trajectories2 <- simulate_SMP(n2, n_states, P2, alpha, dist_type, dist_params2, max_transitions)
+  likelihood_ratio <- compute_LR(trajectories1, trajectories2, n_states, dist_type)
+  
+  bootstrap_df$p_value[i] <- parametric_bootstrap(trajectories1, trajectories2, 
+                                                  n1, n2, n_states, max_transitions, 
+                                                  dist_type, R, n_cores = parallel::detectCores() - 1)
+}
+
+stopCluster(cl)
+
+
+mean(chi2_df$p_value < niveau_test) # 1 (30_7) 1 (60_4)
+mean(permutation_df$p_value < niveau_test) #  (30_7) 1 (60_4)
+mean(bootstrap_df$p_value < niveau_test) # 1 (30_7) 1 (60_4)
 
 
 
@@ -530,6 +578,8 @@ summary(nombre_transitions)
 # paramètres
 n_states <- 9
 dist_type <- "weibull"
+max_transitions <- 5
+R <- 500
 
 # Création des sous-bases
 hommes <- data[data$Q1==1,]
@@ -656,6 +706,7 @@ permutation(likelihood_ratio, R, n_states, n1, n2, smp_trajectories1, smp_trajec
 
 stopCluster(cl)
 # p-valeur de 0.7, on est bien sous H0
+
 
 
 
