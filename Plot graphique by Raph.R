@@ -22,8 +22,6 @@ seq_data <- seqdef(data[, sequence_cols], states = as.character(1:9),
 seqdplot(seq_data, 
          with.legend = FALSE, # Désactive la légende intégrée
          cex.legend = 0.8)
-write.csv(legend_table, "legend_table.csv", row.names = FALSE)
-
 # Version alternative avec knitr pour un rendu plus propre (si besoin)
 # knitr::kable(legend_table, caption = "Légende des états")
 seqdplot(seq_data, with.legend = TRUE, legend.position = "bottom", legend.prop = 0.23)
@@ -36,12 +34,12 @@ seqdplot(seq_data, with.legend = TRUE, legend.position = "bottom", legend.prop =
 
 base_H <- data[data$Q1==1,]
 start <- which(colnames(base_H) == "c1")
-end <- which(colnames(base_H) == "c29")
+end <- which(colnames(base_H) == "c94")
 base_H <- base_H[, start:end]
 
 base_F <- data[data$Q1==2,]
 start <- which(colnames(base_F) == "c1")
-end <- which(colnames(base_F) == "c29")
+end <- which(colnames(base_F) == "c94")
 base_F <- base_F[, start:end]
 
 seq_data <- seqdef(base_H)
