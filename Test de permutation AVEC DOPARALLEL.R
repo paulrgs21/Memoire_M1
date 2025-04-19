@@ -228,3 +228,29 @@ p_value <- permutation_test(base_1_bis, base_2_bis, n1, n2, R, n_states, dist_ty
 stopCluster(cl)
 print(p_value)
 
+
+
+#### Nouveau Test 
+
+library(doParallel)
+registerDoParallel(cores = parallel::detectCores() - 1)
+n_states = 9
+dist_type = "weibull"
+R = 300
+base1 <- data[data$Q1==1&data$Q31==11&data$perefr==0&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==1,]
+base2 <- data[data$Q1==1&data$Q31==11&data$perefr==0&data$merefr==1&data$Q53==3&data$Q52==3&data$Q31A==2,] 
+trajectoires1 <- list()
+for(i in 1:nrow(base1)) {
+  id <- base1$IDENT[i]
+  trajectoires1[[as.character(id)]] <- formatage_smp(base1[i,])
+}
+
+trajectoires2 <- list()
+for(i in 1:nrow(base2)) {
+  id <- base2$IDENT[i]
+  trajectoires2[[as.character(id)]] <- formatage_smp(base2[i,])
+}
+
+likelihood_ratio <- test(base1, base2, n_states, dist_type)$likelihood_ratio
+p_value <- permutation(likelihood_ratio, R, n_states, n1, n2, trajectoires1, trajectoires2, dist_type)
+print(p_value)
