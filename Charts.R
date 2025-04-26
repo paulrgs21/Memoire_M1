@@ -35,6 +35,21 @@ start <- which(colnames(base_F) == "c1")
 end <- which(colnames(base_F) == "c94")
 base_F <- base_F[, start:end]
 
+seq_H <- seqdef(base_H)
+seq_F <- seqdef(base_F)
+
+# Calcul de l'entropie moyenne par temps
+entropy_H <- as.vector(seqmeant(seq_H))
+entropy_F <- as.vector(seqmeant(seq_F))
+
+# Tracer l'évolution de l'entropie dans le temps
+plot(entropy_H, type = "l", col = "blue", lwd = 2, ylim = c(0, max(c(entropy_H, entropy_F))),
+     main = "Representation of the entropy distributions",
+     xlab = "Time", ylab = "Entropy")
+lines(entropy_F, col = "red", lwd = 2)
+legend("topright", legend = c("Men", "Women"), col = c("blue", "red"), lwd = 2)
+
+
 seq_data <- seqdef(base_H)
 entropies <- seqient(seq_data)
 hist(entropies, main = "Men Entropy Distribution", xlab = "Entropie")
