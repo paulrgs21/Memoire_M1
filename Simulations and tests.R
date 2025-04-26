@@ -221,11 +221,11 @@ mean(bootstrap_df$p_value < niveau_test) # 1 (30_7) 1 (60_4)
 
 #### Data management ----
 data <- read.table("C:/Users/paulr/Documents/M1 Dauphine/S1/mémoire/données/donnees.txt", 
-                   header = TRUE,      # La première ligne contient les noms de colonnes
-                   sep = "\t",         # Délimiteur tabulation
-                   quote = "",         # Pas de guillemets pour délimiter les chaînes
-                   na.strings = "",    # Chaînes vides comme NA
-                   fill = TRUE,        # Compléter les lignes trop courtes
+                   header = TRUE,
+                   sep = "\t",
+                   quote = "",
+                   na.strings = "",
+                   fill = TRUE,
                    stringsAsFactors = FALSE)
 
 # à faire :

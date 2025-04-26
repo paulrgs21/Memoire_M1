@@ -6,11 +6,11 @@ library(TraMineR)
 
 #### Data management 
 data <- read.table("C:/Users/rapha/Desktop/Mémoire/donnees.txt", 
-                   header = TRUE,      # La première ligne contient les noms de colonnes
-                   sep = "\t",         # Délimiteur tabulation
-                   quote = "",         # Pas de guillemets pour délimiter les chaînes
-                   na.strings = "",    # Chaînes vides comme NA
-                   fill = TRUE,        # Compléter les lignes trop courtes
+                   header = TRUE,
+                   sep = "\t",
+                   quote = "",
+                   na.strings = "",
+                   fill = TRUE,
                    stringsAsFactors = FALSE)
 
 
@@ -20,7 +20,7 @@ seq_data <- seqdef(data[, sequence_cols], states = as.character(1:9),
 
 # Distribution par temps
 seqdplot(seq_data, 
-         with.legend = FALSE, # Désactive la légende intégrée
+         with.legend = FALSE,
          cex.legend = 0.8)
 
 # Avec l'entropie on verifie la predictibilité des changements d'état
